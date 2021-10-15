@@ -28,6 +28,9 @@
 			#control {
 				grid-row: 2;
 				grid-column: 2;
+				background-color: #ddf;
+			}
+			#control > :nth-child(1), #control > :nth-child(2), .iconbar {
 				background-color: #fff;
 			}
 			#field {
@@ -46,10 +49,46 @@
 				cursor: pointer;
 			}
 			.iconbar > svg > image {
-				clip-path: circle();
+				clip-path: path('M0 .5A.5 .5 0 0 1 1 .5L1 .5A.5 .5 0 0 1 .5 1L.5 1A.5 .5 0 0 1 0 .5Z');
+				transform: scale(0.9);
+				transform-origin: center;
+				transition: 0.2s;
+				filter: grayscale(0.8);
+				opacity: 0.8;
+			}
+			.iconbar > svg > image:hover {
+				transform: scale(0.93);
+				filter: grayscale(0.5);
+				opacity: 0.85;
 			}
 			.iconbar > svg.active > image {
-				clip-path: path('M0 1V.5A.5 .5 0 0 1 1 .5L1 1Z');
+				clip-path: path('M0 .5A.5 .5 0 0 1 1 .5L1 1A0 0 0 0 1 1 1L0 1A0 0 0 0 1 0 1Z');
+				transform: scale(1);
+				filter: grayscale(0);
+				opacity: 1;
+			}
+			.action {
+				fill: rgba(255, 255, 255, 0.2);
+				stroke: #000;
+				stroke-width: 0.02;
+			}
+			.action:hover {
+				fill: #88f;
+			}
+			.optionsblock {
+				padding: 0.5em;
+			}
+			.skillblock {
+				display: flex;
+				text-transform: capitalize;
+				border: 1px solid #ccc;
+				background-color: #eef;
+				border-radius: 1em;
+				margin-top: 0.2em;
+				padding-left: 0.5em;
+			}
+			.optionsblock > svg {
+				height: 5em;
 			}
 		</style>
 	</head>

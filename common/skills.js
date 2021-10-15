@@ -45,6 +45,11 @@ class Skill {
 		return and(effect, [() => { aerial.breath -= breathReq; aerial.skillCount++; }]);
 	}
 
+	function preflight(aerial, effect) {
+		if (aerial.phase != Aerial.PHASE_PREFLIGHT) return [];
+		return effect;
+	}
+
 	// Cross product.
 	function and(effect1, effect2) {
 		return effect1.flatMap(e1 => effect2.map(e2 => () => { e1(); e2(); }));
@@ -105,25 +110,25 @@ class Skill {
 	}
 
 	// Preflight skills.
-	Skill.SKILLS[Skill.SKILL_LIFT] = (a, g) => common(a, g, 2, 1, aerial(a, up(1)));
-	Skill.SKILLS[Skill.SKILL_DROP] = (a, g) => common(a, g, 1, 1, aerial(a, down(1)));
-	Skill.SKILLS[Skill.SKILL_FLY] = (a, g) => common(a, g, 1, 1, aerial(a, horizontals(1)));
+	Skill.SKILLS[Skill.SKILL_LIFT] = (a, g) => preflight(a, common(a, g, 2, 1, aerial(a, up(1))));
+	Skill.SKILLS[Skill.SKILL_DROP] = (a, g) => preflight(a, common(a, g, 1, 1, aerial(a, down(1))));
+	Skill.SKILLS[Skill.SKILL_FLY] = (a, g) => preflight(a, common(a, g, 1, 1, aerial(a, horizontals(1))));
 
-	Skill.SKILLS[Skill.SKILL_GLIDE] = (a, g) => common(a, g, 1, 1, aerial(a, up(1)));
-	Skill.SKILLS[Skill.SKILL_SOAR] = (a, g) => common(a, g, 3, 2, aerial(a, up(2)));
-	Skill.SKILLS[Skill.SKILL_SPRINT] = (a, g) => common(a, g, 3, 2, aerial(a, horizontals(2)));
-	Skill.SKILLS[Skill.SKILL_DIVE] = (a, g) => common(a, g, 2, 2, aerial(a, down(2)));
+	Skill.SKILLS[Skill.SKILL_GLIDE] = (a, g) => preflight(a, common(a, g, 1, 1, aerial(a, up(1))));
+	Skill.SKILLS[Skill.SKILL_SOAR] = (a, g) => preflight(a, common(a, g, 3, 2, aerial(a, up(2))));
+	Skill.SKILLS[Skill.SKILL_SPRINT] = (a, g) => preflight(a, common(a, g, 3, 2, aerial(a, horizontals(2))));
+	Skill.SKILLS[Skill.SKILL_DIVE] = (a, g) => preflight(a, common(a, g, 2, 2, aerial(a, down(2))));
 
-	Skill.SKILLS[Skill.SKILL_GROUP_LIFT] = (a, g) => common(a, g, 3, 2, allAdjacentAndSelf(a, g, up(1)));
-	Skill.SKILLS[Skill.SKILL_GROUP_FLY] = (a, g) => common(a, g, 3, 2, allAdjacentAndSelf(a, g, horizontals(1)));
-	Skill.SKILLS[Skill.SKILL_GROUP_DROP] = (a, g) => common(a, g, 3, 2, allAdjacentAndSelf(a, g, drop(1)));
+	Skill.SKILLS[Skill.SKILL_GROUP_LIFT] = (a, g) => preflight(a, common(a, g, 3, 2, allAdjacentAndSelf(a, g, up(1))));
+	Skill.SKILLS[Skill.SKILL_GROUP_FLY] = (a, g) => preflight(a, common(a, g, 3, 2, allAdjacentAndSelf(a, g, horizontals(1))));
+	Skill.SKILLS[Skill.SKILL_GROUP_DROP] = (a, g) => preflight(a, common(a, g, 3, 2, allAdjacentAndSelf(a, g, drop(1))));
 
-	Skill.SKILLS[Skill.SKILL_LEVEL] = (a, g) => common(a, g, 1, 1, oppositeVerticalPlusHorizontal(1, 1, a));
-	Skill.SKILLS[Skill.SKILL_STEEPEN] = (a, g) => common(a, g, 1, 1, oppositeHorizontalPlusVertical(1, 1, a));
+	Skill.SKILLS[Skill.SKILL_LEVEL] = (a, g) => preflight(a, common(a, g, 1, 1, oppositeVerticalPlusHorizontal(1, 1, a)));
+	Skill.SKILLS[Skill.SKILL_STEEPEN] = (a, g) => preflight(a, common(a, g, 1, 1, oppositeHorizontalPlusVertical(1, 1, a)));
 
 	// Midflight skills.
-	Skill.SKILLS[Skill.SKILL_BOOST] = (a, g) => common(a, g, 2, 1, adjacentAerial(a, g, up(2)));
-	Skill.SKILLS[Skill.SKILL_SINKING_THROW] = (a, g) => common(a, g, 2, 1, and(adjacentAerial(a, g, down(1)), aerial(a, up(1))));
+	Skill.SKILLS[Skill.SKILL_BOOST] = (a, g) => preflight(a, common(a, g, 2, 1, adjacentAerial(a, g, up(2))));
+	Skill.SKILLS[Skill.SKILL_SINKING_THROW] = (a, g) => preflight(a, common(a, g, 2, 1, and(adjacentAerial(a, g, down(1)), aerial(a, up(1)))));
 
 	// Reaction skills.
 

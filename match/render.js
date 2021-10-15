@@ -1,4 +1,4 @@
-class Util {
+class RenderUtil {
 	static posToTransform(position, field) {
 		return "translate(" + position[0] + "px, " + (field.height - position[1] - 1) + "px)";
 	}
@@ -106,6 +106,7 @@ class OptionsActor {
 		parent.appendChild(this.g);
 		this.g.appendChild(document.createTextNode(aerial.name));
 		this.optionsBlock = document.createElement("div");
+		this.optionsBlock.setAttribute("class", "optionsblock");
 		this.g.appendChild(this.optionsBlock);
 		this.update(game);
 	}
@@ -121,29 +122,30 @@ class OptionsActor {
 	update() {
 		this.optionsBlock.innerHTML = "";
 		for (let s of this.aerial.skills) {
-			let skillBlock = document.createElement("div");
-			skillBlock.appendChild(document.createTextNode(s + ": "));
 			let options = Skill.SKILLS[s](this.aerial, this.game);
 			for (let i = 0; i < options.length; i++) {
 				let consequence = this.game.clone();
 				Skill.SKILLS[s](consequence.field.aerials[this.game.field.aerials.indexOf(this.aerial)], consequence)[i](); // Apply the skill use to the consequence.
-				let odiv = document.createElement("span");
 				let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-				svg.setAttribute("viewBox", "-.5 -.5 1 1")
-				svg.style.height = "1em";
+				svg.setAttribute("viewBox", "-.55 -.55 1.1 1.1")
 				let c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
 				c.setAttribute("r", 0.5);
-				c.style.fill = "#000";
+				c.setAttribute("class", "action");
 				svg.appendChild(c);
-				odiv.appendChild(svg);
-				skillBlock.appendChild(odiv);
+				this.optionsBlock.appendChild(svg);
 				c.style.cursor = "pointer";
 				let fieldActor = this.fieldActor;
 				c.addEventListener("mouseout", () => fieldActor.clearOverrides());
 				c.addEventListener("mouseover", () => fieldActor.setOverrides(consequence.field));
 				c.addEventListener("click", () => this.actionCommitter({"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "skill": s, "option": i}));
+				let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+				t.appendChild(document.createTextNode(s));
+				t.style.textAnchor = "middle";
+				t.style.dominantBaseline = "middle";
+				t.style.pointerEvents = "none";
+				t.style.fontSize = "0.3px";
+				svg.appendChild(t);
 			}
-			this.optionsBlock.appendChild(skillBlock);
 		}
 	}
 }
@@ -196,6 +198,7 @@ class FieldActor {
 	getCellActor(i, j) { return this.cellActors[i][j]; }
 
 	update() {
+		this.clearOverrides();
 		for (let a of this.aerialActors) a.update();
 	}
 }
@@ -219,9 +222,9 @@ class CellActor {
 		this.fieldWidth = fieldWidth;
 		this.rsurfaces = [];
 		for (let i = 0; i < 5; i++) this.rsurfaces.push(document.createElementNS("http://www.w3.org/2000/svg", "path"));
-		let x = p => Util.translatePoints(p, position[0], fieldHeight - position[1] - 1);
-		this.rsurfaces[0].setAttribute("d", Util.pointsToPath(x([[0, 0], [1.02, 0], [1.02, 1.02], [0, 1.02]])));
-		this.rsurfaces[1].setAttribute("d", Util.pointsToPath(x([[0, .67], [.33, 1.02], [0, 1.33], [-.33, 1.02]])));
+		let x = p => RenderUtil.translatePoints(p, position[0], fieldHeight - position[1] - 1);
+		this.rsurfaces[0].setAttribute("d", RenderUtil.pointsToPath(x([[0, 0], [1.02, 0], [1.02, 1.02], [0, 1.02]])));
+		this.rsurfaces[1].setAttribute("d", RenderUtil.pointsToPath(x([[0, .67], [.33, 1.02], [0, 1.33], [-.33, 1.02]])));
 		for (let rsurface of this.rsurfaces) parent.appendChild(rsurface);
 	}
 
@@ -259,7 +262,7 @@ class ObstacleActor {
 		this.field = field;
 		this.g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 		parent.appendChild(this.g);
-		this.g.style.transform = Util.posToTransform(this.obstacle.position, this.field);
+		this.g.style.transform = RenderUtil.posToTransform(this.obstacle.position, this.field);
 		let obj = document.createElementNS("http://www.w3.org/2000/svg", "circle");
 		obj.setAttribute("cx", 0.5);
 		obj.setAttribute("cy", 0.5);
@@ -278,6 +281,7 @@ class AerialActor {
 	// motionDest[]
 	// motionDestLine[]
 	// breathPips[]
+	// skillCountPips[]
 
 	// TODO: injury pips.
 	// TODO: mana/skillCount pips?
@@ -287,12 +291,12 @@ class AerialActor {
 		this.field = field;
 		this.g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 		parent.appendChild(this.g);
-		this.g.style.transform = Util.posToTransform(this.aerial.position, this.field);
+		this.g.style.transform = RenderUtil.posToTransform(this.aerial.position, this.field);
+		this.g.style.transition = "0.3s";
 		this.motionDest = [];
 		this.motionDestLine = [];
 		{
 			this.motionDestLine.push(document.createElementNS("http://www.w3.org/2000/svg", "path"));
-			this.motionDestLine[0].setAttribute("d", "M.5 .5l" + this.aerial.velocityRemaining[0] + " " + -this.aerial.velocityRemaining[1]);
 			this.motionDestLine[0].style.transition = "0.3s";
 			this.motionDestLine[0].style.stroke = this.aerial.team.color2;
 			this.motionDestLine[0].style.strokeWidth = 0.022
@@ -300,7 +304,6 @@ class AerialActor {
 		}
 		{
 			this.motionDestLine.push(document.createElementNS("http://www.w3.org/2000/svg", "path"));
-			this.motionDestLine[1].setAttribute("d", "M.5 .5m" + this.aerial.velocityRemaining[0] + " " + -this.aerial.velocityRemaining[1] + "l" + this.aerial.velocity[0] + " " + (-this.aerial.velocity[1] + 1));
 			this.motionDestLine[1].style.transition = "0.3s";
 			this.motionDestLine[1].style.stroke = this.aerial.team.color2;
 			this.motionDestLine[1].style.strokeWidth = 0.022
@@ -311,7 +314,6 @@ class AerialActor {
 			this.motionDest[0].setAttribute("cx", 0.5);
 			this.motionDest[0].setAttribute("cy", 0.5);
 			this.motionDest[0].setAttribute("r", 0.1);
-			this.motionDest[0].style.transform = "translate(" + this.aerial.velocityRemaining[0] + "px, " + -this.aerial.velocityRemaining[1] + "px)";
 			this.motionDest[0].style.transition = "transform 0.3s";
 			this.motionDest[0].style.fill = this.aerial.team.color1;
 			this.motionDest[0].style.stroke = this.aerial.team.color2;
@@ -323,7 +325,6 @@ class AerialActor {
 			this.motionDest[1].setAttribute("cx", 0.5);
 			this.motionDest[1].setAttribute("cy", 0.5);
 			this.motionDest[1].setAttribute("r", 0.1);
-			this.motionDest[1].style.transform = "translate(" + (this.aerial.velocityRemaining[0] + this.aerial.velocity[0]) + "px, " + (-this.aerial.velocityRemaining[1] - this.aerial.velocity[1] + 1) + "px)";
 			this.motionDest[1].style.transition = "transform 0.3s";
 			this.motionDest[1].style.fill = this.aerial.team.color1;
 			this.motionDest[1].style.stroke = this.aerial.team.color2;
@@ -340,38 +341,82 @@ class AerialActor {
 			portraitimg.setAttribute("y", 0.025);
 			this.g.appendChild(portraitimg)
 		}
+		let makePip = (shape, angle, fill, stroke) => {
+			let pip = document.createElementNS("http://www.w3.org/2000/svg", "path");
+			pip.setAttribute("d", shape);
+			pip.dataset.baseTransform = "translate(.5px, .5px) scale(%S) rotate(" + angle + "rad) translate(-.5px, -.5px)";
+			pip.style.transform = pip.dataset.baseTransform.replace("%S", 1);
+			pip.style.transition = "transform 0.3s";
+			pip.style.fill=fill;
+			pip.style.stroke=stroke;
+			pip.style.strokeWidth=0.01;
+			this.g.appendChild(pip);
+			return pip;
+		}
 		this.breathPips = [];
+		this.skillCountPips = [];
+		this.injuryPips = [];
 		{
 			let startAngle = Math.PI / 8;
 			let stepAngle = Math.PI / 4 / 10 * 3;
-			for (let i = 0; i < 10; i++) {
-				let pip = document.createElementNS("http://www.w3.org/2000/svg", "path");
-				let op = [Math.sin(stepAngle) * .5 + .5, (1 - Math.cos(stepAngle) * .5 - .5)];
-				let ip = [Math.sin(stepAngle) * .3 + .5, (1 - Math.cos(stepAngle) * .3 - .5)];
-				pip.setAttribute("d", "M.5 .2V0A.5 .5 0 0 1 " + op[0] + " " + op[1] + "L" + ip[0] + " " + ip[1] + "A.3 .3 0 0 1 .5 .2Z");
-				pip.style.transform = "translate(.5px, .5px) scale(1) rotate(" + (startAngle + stepAngle * i) + "rad) translate(-.5px, -.5px)";
-				pip.style.transition = "transform 0.3s";
-				this.breathPips.push(pip);
-				pip.style.fill=this.aerial.team.color1;
-				pip.style.stroke=this.aerial.team.color2;
-				pip.style.strokeWidth=0.01;
-				this.g.appendChild(pip);
-			}
+			let op = [Math.sin(stepAngle) * .5 + .5, (1 - Math.cos(stepAngle) * .5 - .5)];
+			let ip = [Math.sin(stepAngle) * .3 + .5, (1 - Math.cos(stepAngle) * .3 - .5)];
+			for (let i = 0; i < 10; i++) this.breathPips.push(makePip("M.5 .2V0A.5 .5 0 0 1 " + op[0] + " " + op[1] + "L" + ip[0] + " " + ip[1] + "A.3 .3 0 0 0 .5 .2Z", startAngle + stepAngle * i, "#eee", "#444"));
+			startAngle = startAngle + stepAngle * 11;
+			stepAngle *= 1.5;
+			op = [Math.sin(stepAngle) * .5 + .5, (1 - Math.cos(stepAngle) * .5 - .5)];
+			ip = [Math.sin(stepAngle) * .3 + .5, (1 - Math.cos(stepAngle) * .3 - .5)];
+			for (let i = 0; i < 4; i++) this.skillCountPips.push(makePip("M.5 .2V0A.5 .5 0 0 1 " + op[0] + " " + op[1] + "L" + ip[0] + " " + ip[1] + "A.3 .3 0 0 0 .5 .2Z", startAngle + stepAngle * i, "#66e", "#000"));
+			startAngle = Math.PI / 8 - stepAngle;
+			stepAngle /= -1.5;
+			op = [Math.sin(stepAngle) * .5 + .5, (1 - Math.cos(stepAngle) * .5 - .5)];
+			ip = [Math.sin(stepAngle / 2) * .3 + .5, (1 - Math.cos(stepAngle / 2) * .3 - .5)];
+			for (let i = 0; i < 8; i++) this.injuryPips.push(makePip("M.5 .2V0A.5 .5 0 0 1 " + op[0] + " " + op[1] + "L" + ip[0] + " " + ip[1] + "Z", startAngle + stepAngle * i, "#a20", "#000"));
 		}
+		this.update();
 	}
 
 	update() {
 		let a = this.override != undefined ? this.override : this.aerial;
+		this.g.style.transform = RenderUtil.posToTransform(a.position, this.field);
 		this.motionDest[0].style.transform = "translate(" + a.velocityRemaining[0] + "px, " + -a.velocityRemaining[1] + "px)";
 		this.motionDest[1].style.transform = "translate(" + (a.velocityRemaining[0] + a.velocity[0]) + "px, " + (-a.velocityRemaining[1] - a.velocity[1] + 1) + "px)";
-		this.motionDestLine[0].setAttribute("d", "M.5 .5l" + a.velocityRemaining[0] + " " + -a.velocityRemaining[1]);
+		this.motionDestLine[0].setAttribute("d", "M" + (a.fractionalPosition[0] - a.position[0]) + " " + (1 - (a.fractionalPosition[1] - a.position[1])) + "L" + (a.velocityRemaining[0] + .5) + " " + (1 - (a.velocityRemaining[1] + .5)));
 		this.motionDestLine[1].setAttribute("d", "M.5 .5m" + a.velocityRemaining[0] + " " + -a.velocityRemaining[1] + "l" + a.velocity[0] + " " + (-a.velocity[1] + 1));
 		{ // Breath pips
-			let startAngle = Math.PI / 8;
-			let stepAngle = Math.PI / 4 / 10 * 3;
 			for (let i = 0; i < this.breathPips.length; i++) {
-				let pip = this.breathPips[i];
-				pip.style.transform = "translate(.5px, .5px) scale(" + (a.breath < i ? 0 : 1) + ") rotate(" + (startAngle + stepAngle * i) + "rad) translate(-.5px, -.5px)";
+				let scale = 0;
+				if (a.breath > i && this.aerial.breath > i) scale = 1;
+				else if (a.breath > i || this.aerial.breath > i) scale = 0.67;
+				this.breathPips[i].style.transform = this.breathPips[i].dataset.baseTransform.replace("%S", scale);
+			}
+		}
+		{ // Skill pips
+			for (let i = 0; i < this.skillCountPips.length; i++) {
+				let aCapacity = this.field.getCell(a.position).mana;
+				let aerialCapacity = this.field.getCell(this.aerial.position).mana;
+
+				let scale = 0;
+				if (aCapacity > i && aerialCapacity > i) scale = 1;
+				else if (aCapacity > i || aerialCapacity > i) scale = 0.67;
+				this.skillCountPips[i].style.transform = this.skillCountPips[i].dataset.baseTransform.replace("%S", scale);
+
+				let fill = "#ccf";
+				if (a.skillCount > i && this.aerial.skillCount > i) fill = "#44f";
+				else if (a.skillCount > i || this.aerial.skillCount > i) fill = "#88f";
+				this.skillCountPips[i].style.fill = fill;
+			}
+		}
+		{ // Injury pips
+			for (let i = 0; i < this.injuryPips.length; i++) {
+				let aInjuries = 0;
+				let aerialInjuries = 0;
+				for (let i = 0; i < a.injuries.length; i++) if (a.injuries[i]) aInjuries++;
+				for (let i = 0; i < this.aerial.injuries.length; i++) if (this.aerial.injuries[i]) aerialInjuries++;
+				let scale = 0;
+				if (aInjuries > i && aerialInjuries > i) scale = 1;
+				else if (aInjuries > i || aerialInjuries > i) scale = 1.3;
+				this.injuryPips[i].style.transform = this.injuryPips[i].dataset.baseTransform.replace("%S", scale);
 			}
 		}
 
