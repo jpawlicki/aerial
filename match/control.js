@@ -23,6 +23,8 @@ class Controller {
 		this.game.revision++;
 		if (action.hasOwnProperty("skill")) {
 			Skill.SKILLS[action.skill](this.game.field.aerials[action.aerial], this.game)[action.option]();
+		} else if (action.hasOwnProperty("move")) {
+			this.game.field.aerials[action.aerial].moveStep(this.game.field.collisionTester.bind(this.game.field));
 		} else {
 			console.log(JSON.stringify(action));
 		}

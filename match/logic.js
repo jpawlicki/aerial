@@ -248,6 +248,7 @@ class Aerial {
 						this.injuries.map(i => i),
 						this.breath);
 		a.velocityRemaining = this.velocityRemaining.map(i => i);
+		a.fractionalPosition = this.fractionalPosition;
 		a.skillCount = this.skillCount;
 		a.phase = this.phase;
 		return a;

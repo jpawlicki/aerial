@@ -121,31 +121,41 @@ class OptionsActor {
 
 	update() {
 		this.optionsBlock.innerHTML = "";
+
+		const makeButton = (label, consequence, action) => {
+			let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+			svg.setAttribute("viewBox", "-.55 -.55 1.1 1.1")
+			let c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+			c.setAttribute("r", 0.5);
+			c.setAttribute("class", "action");
+			svg.appendChild(c);
+			this.optionsBlock.appendChild(svg);
+			c.style.cursor = "pointer";
+			let fieldActor = this.fieldActor;
+			c.addEventListener("mouseout", () => fieldActor.clearOverrides());
+			c.addEventListener("mouseover", () => fieldActor.setOverrides(consequence.field));
+			c.addEventListener("click", () => this.actionCommitter(action));
+			let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+			t.appendChild(document.createTextNode(label));
+			t.style.textAnchor = "middle";
+			t.style.dominantBaseline = "middle";
+			t.style.pointerEvents = "none";
+			t.style.fontSize = "0.3px";
+			svg.appendChild(t);
+		}
+
 		for (let s of this.aerial.skills) {
 			let options = Skill.SKILLS[s](this.aerial, this.game);
 			for (let i = 0; i < options.length; i++) {
 				let consequence = this.game.clone();
 				Skill.SKILLS[s](consequence.field.aerials[this.game.field.aerials.indexOf(this.aerial)], consequence)[i](); // Apply the skill use to the consequence.
-				let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-				svg.setAttribute("viewBox", "-.55 -.55 1.1 1.1")
-				let c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-				c.setAttribute("r", 0.5);
-				c.setAttribute("class", "action");
-				svg.appendChild(c);
-				this.optionsBlock.appendChild(svg);
-				c.style.cursor = "pointer";
-				let fieldActor = this.fieldActor;
-				c.addEventListener("mouseout", () => fieldActor.clearOverrides());
-				c.addEventListener("mouseover", () => fieldActor.setOverrides(consequence.field));
-				c.addEventListener("click", () => this.actionCommitter({"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "skill": s, "option": i}));
-				let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-				t.appendChild(document.createTextNode(s));
-				t.style.textAnchor = "middle";
-				t.style.dominantBaseline = "middle";
-				t.style.pointerEvents = "none";
-				t.style.fontSize = "0.3px";
-				svg.appendChild(t);
+				makeButton(s, consequence, {"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "skill": s, "option": i});
 			}
+		}
+		if (this.aerial.velocityRemaining[0] != 0 || this.aerial.velocityRemaining[1] != 0) {
+			let consequence = this.game.clone();
+			consequence.field.aerials[this.game.field.aerials.indexOf(this.aerial)].moveStep(consequence.field.collisionTester.bind(consequence.field));
+			makeButton("move", consequence, {"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "move": true});
 		}
 	}
 }
@@ -282,6 +292,7 @@ class AerialActor {
 	// motionDestLine[]
 	// breathPips[]
 	// skillCountPips[]
+	// motionPlacer
 
 	// TODO: injury pips.
 	// TODO: mana/skillCount pips?
@@ -298,6 +309,7 @@ class AerialActor {
 		{
 			this.motionDestLine.push(document.createElementNS("http://www.w3.org/2000/svg", "path"));
 			this.motionDestLine[0].style.transition = "0.3s";
+			this.motionDestLine[0].style.fill = "none";
 			this.motionDestLine[0].style.stroke = this.aerial.team.color2;
 			this.motionDestLine[0].style.strokeWidth = 0.022
 			this.g.appendChild(this.motionDestLine[0]);
@@ -305,6 +317,7 @@ class AerialActor {
 		{
 			this.motionDestLine.push(document.createElementNS("http://www.w3.org/2000/svg", "path"));
 			this.motionDestLine[1].style.transition = "0.3s";
+			this.motionDestLine[1].style.fill = "none";
 			this.motionDestLine[1].style.stroke = this.aerial.team.color2;
 			this.motionDestLine[1].style.strokeWidth = 0.022
 			this.g.appendChild(this.motionDestLine[1]);
@@ -340,6 +353,16 @@ class AerialActor {
 			portraitimg.setAttribute("x", 0.025);
 			portraitimg.setAttribute("y", 0.025);
 			this.g.appendChild(portraitimg)
+		}
+		{
+			this.motionPlacer = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+			this.motionPlacer.setAttribute("cx", 0.5);
+			this.motionPlacer.setAttribute("cy", 0.5);
+			this.motionPlacer.setAttribute("r", 0.475);
+			this.motionPlacer.style.fill = "none";
+			this.motionPlacer.style.strokeWidth = 0.04;
+			this.motionPlacer.style.strokeDasharray = "0.1 0.1";
+			this.g.appendChild(this.motionPlacer);
 		}
 		let makePip = (shape, angle, fill, stroke) => {
 			let pip = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -378,11 +401,20 @@ class AerialActor {
 
 	update() {
 		let a = this.override != undefined ? this.override : this.aerial;
-		this.g.style.transform = RenderUtil.posToTransform(a.position, this.field);
-		this.motionDest[0].style.transform = "translate(" + a.velocityRemaining[0] + "px, " + -a.velocityRemaining[1] + "px)";
-		this.motionDest[1].style.transform = "translate(" + (a.velocityRemaining[0] + a.velocity[0]) + "px, " + (-a.velocityRemaining[1] - a.velocity[1] + 1) + "px)";
-		this.motionDestLine[0].setAttribute("d", "M" + (a.fractionalPosition[0] - a.position[0]) + " " + (1 - (a.fractionalPosition[1] - a.position[1])) + "L" + (a.velocityRemaining[0] + .5) + " " + (1 - (a.velocityRemaining[1] + .5)));
-		this.motionDestLine[1].setAttribute("d", "M.5 .5m" + a.velocityRemaining[0] + " " + -a.velocityRemaining[1] + "l" + a.velocity[0] + " " + (-a.velocity[1] + 1));
+		this.g.style.transform = RenderUtil.posToTransform(this.aerial.position, this.field);
+		let dp = [a.position[0] - this.aerial.position[0], a.position[1] - this.aerial.position[1]];
+		this.motionDest[0].style.transform = "translate(" + (dp[0] + a.velocityRemaining[0]) + "px, " + -(dp[1] + a.velocityRemaining[1]) + "px)";
+		this.motionDest[1].style.transform = "translate(" + (dp[0] + a.velocityRemaining[0] + a.velocity[0]) + "px, " + (-dp[1] - a.velocityRemaining[1] - a.velocity[1] + 1) + "px)";
+		this.motionDestLine[0].setAttribute("d", "M" + (a.fractionalPosition[0] - this.aerial.position[0]) + " " + (1 - (a.fractionalPosition[1] - this.aerial.position[1])) + "L" + (dp[0] + a.velocityRemaining[0] + .5) + " " + (1 - (dp[1] + a.velocityRemaining[1] + .5)));
+		this.motionDestLine[1].setAttribute("d", "M.5 .5m" + (dp[0] + a.velocityRemaining[0]) + " " + -(dp[1] + a.velocityRemaining[1]) + "l" + a.velocity[0] + " " + (-a.velocity[1] + 1));
+		{ // Motion placer
+			if (dp[0] != 0 || dp[1] != 0) {
+				this.motionPlacer.style.stroke = "#000";
+				this.motionPlacer.style.transform = "translate(" + dp[0] + "px," + -dp[1] + "px)";
+			} else {
+				this.motionPlacer.style.stroke = "none";
+			}
+		}
 		{ // Breath pips
 			for (let i = 0; i < this.breathPips.length; i++) {
 				let scale = 0;
