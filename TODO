@@ -1,0 +1,8 @@
+Implement field editor & save/load.
+Write some basic test aerials, fields, teams into the database.
+Implement basic match creation (lobby.html).
+Change match.html to load match information from the database, and apply any actions already there.
+match: Additional action application
+match: elimination & ground/obstacle collisions
+match: round ending, timing, and scoring
+common: implement remainder of skills

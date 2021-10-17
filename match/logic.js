@@ -11,6 +11,8 @@ class Game {
 	// teamTurn
 	// aerials[][]
 	// revision
+	// turnsLeft
+	// round
 
 	constructor(field, teams, aerials) {
 		this.field = field;
@@ -18,15 +20,43 @@ class Game {
 		this.teamTurn = 0;
 		this.aerials = aerials;
 		this.revision = 0;
+		this.turnsLeft = 20;
+		this.round = 1;
 		for (let ag of aerials) for (let a of ag) this.field.addAerial(a);
 	}
 
 	clone() {
 		let g = new Game(this.field.clone(), this.teams, []);
-		g.aerials = this.aerials; // TODO: buggy
+		g.aerials = this.aerials; // TODO: buggy - this is a shallow copy, but the field clone will do a deep copy.
 		g.teamTurn = this.teamTurn;
 		g.revision = this.revision;
 		return g;
+	}
+
+	endTurn() {
+		for (let a of this.aerials[this.teamTurn]) a.endTurn(this.field);
+		this.teamTurn = (this.teamTurn + 1) % this.teams.length;
+		for (let a of this.aerials[this.teamTurn]) a.startTurn(this.field);
+		if (this.teamTurn == 0) this.turnsLeft--;
+	}
+
+	toJSON() {
+		return JSON.stringify(this);
+	}
+
+	static fromJSON(json, fieldDataFetcher, teamDataFetcher, aerialDataFetcher) {
+		let data = JSON.parse(json);
+		let field = Field.fromJSON(fieldDataDetcher(data.field.id)));
+		let teams = [];
+		let aerials = [];
+		for (let team of data.teams) {
+			teams.push(Team.fromJSON(teamDataFetcher(team.id)));
+			let as = [];
+			for (let a of team.aerials) as.push(Aerial.fromJSON(aerialDataFetcher(a)));
+			aerials.push(as);
+		}
+		// TODO: position aerials on the field
+		return new Game(field, teams, aerials);
 	}
 }
 
@@ -157,10 +187,11 @@ class Aerial {
 	// skillCount // number of skills used this turn.
 	// phase
 	// fractionalPos[] // The "true" position of aerial as they move along the flight line.
-	// travelled[] // spaces this aerial has travelled during MIDFLIGHT
+	// eliminated
 
 	static PHASE_PREFLIGHT = 1;
 	static PHASE_MIDLIGHT = 2;
+	static PHASE_NOTTURN = 3;
 
 	constructor(position, velocity, portrait, name, team, skills, injuries, breath) {
 		this.position = position;
@@ -175,6 +206,7 @@ class Aerial {
 		this.skillCount = 0;
 		this.phase = Aerial.PHASE_PREFLIGHT;
 		this.fractionalPosition = [position[0] + 0.5, position[1] + 0.5];
+		this.eliminated = false;
 	}
 
 	addMotion(dv) {
@@ -188,6 +220,25 @@ class Aerial {
 		let dx = this.position[0] - position[0];
 		let dy = this.position[1] - position[1];
 		return Math.sqrt(dx * dx + dy * dy);
+	}
+
+	startTurn(field) {
+		this.phase = Aerial.PHASE_PREFLIGHT;
+	}
+
+	endTurn(field) {
+		this.velocity[1]--;
+		this.velocityRemaining[0] = this.velocity[0];
+		this.velocityRemaining[1] = this.velocity[1];
+		this.skillCount = 0;
+		this.phase = Aerial.PHASE_NOTTURN;
+		{
+			let breathRegain = 2;
+			while (breathRegain > 0) {
+				if (this.breath + 1 <= this.getMaxBreath()) this.breath++;
+				breathRegain--;
+			}
+		}
 	}
 
 	moveStep(collider) {
@@ -226,7 +277,7 @@ class Aerial {
 	}
 
 	getMaxBreath() {
-		return 6 + this.hasSkill(Skill.SKILL_ENDURANCE) ? 4 : 0;
+		return 6 + (this.hasSkill(Skill.SKILL_ENDURANCE) ? 2 : 0);
 	}
 
 	hasSkill(skillId) {
@@ -251,6 +302,7 @@ class Aerial {
 		a.fractionalPosition = this.fractionalPosition;
 		a.skillCount = this.skillCount;
 		a.phase = this.phase;
+		a.eliminated = this.eliminated;
 		return a;
 	}
 }

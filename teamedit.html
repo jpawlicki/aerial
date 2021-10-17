@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"></meta>
+		<script src="common/firebase.js" type="module"></script>
+		<script src="common/skills.js"></script>
+		<script src="common/url.js"></script>
+		<style>
+			html, body {
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				background-color: #003;
+				font-family: sans-serif;
+				color: #fff;
+			}
+			body {
+				display: grid;
+				grid-template-columns: 20em 1fr;
+			}
+			#list {
+				display: flex;
+				flex-direction: column;
+				align-content: start;
+			}
+			a {
+				color: #ddd;
+				text-decoration: none;
+			}
+			a.active {
+				font-weight: bold;
+				color: #fff;
+			}
+			a:hover {
+				text-decoration: underline;
+			}
+			label {
+				text-transform: capitalize;
+			}
+			#edit {
+				visibility: hidden;
+				height: min-content;
+			}
+			td {
+				vertical-align: top;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="list">
+			<button id="new">New Team</button>
+		</div>
+		<table id="edit">
+			<tr><td><label for="editKey">Unique Key</label></td><td><input type="text" id="editKey" disabled></input></td></tr>
+			<tr><td><label for="editName">Name</label></td><td><input type="text" id="editName"></input></td></tr>
+			<tr><td><label for="editColor1">Primary Color</label></td><td><input type="color" id="editColor1"></input></td></tr>
+			<tr><td><label for="editColor2">Edge Color</label></td><td><input type="color" id="editColor2"></input></td></tr>
+			<tr><td colspan="2"><button id="save" disabled>Save Changes</button></td></tr>
+		</table>
+
+		<script type="module">
+			import { ref, child, push, get, set, onValue, onChildAdded, onChildChanged } from "https://www.gstatic.com/firebasejs/9.1.3/firebase-database.js";
+
+			let displayedKey = "";
+			let displayedData = {};
+
+			for (let d of document.querySelectorAll("input")) d.addEventListener("input", checkSave);
+
+			function getFormData() {
+				let o = {
+					"color1": document.getElementById("editColor1").value,
+					"color2": document.getElementById("editColor2").value,
+					"name": document.getElementById("editName").value,
+				};
+				return o;
+			}
+
+			function checkSave() {
+				document.getElementById("save").disabled = JSON.stringify(getFormData()) == JSON.stringify(displayedData);
+			}
+
+			function display(key, data) {
+				for (let a of document.querySelectorAll("#list > a")) a.setAttribute("class", a.getAttribute("href") == "#" + key ? "active" : "");
+				document.getElementById("edit").style.visibility = "visible";
+				document.getElementById("editKey").value = key;
+				document.getElementById("editName").value = data.name;
+				document.getElementById("editColor1").value = data.color1;
+				document.getElementById("editColor2").value = data.color2;
+				displayedData = data;
+				displayedKey = key;
+				checkSave();
+			}
+
+			function makeLink(key, data, insertBefore) {
+				let v = document.getElementById("list");
+				let a = document.createElement("a");
+				a.appendChild(document.createTextNode(data.name + " (" + key + ")"));
+				a.setAttribute("data-key", key);
+				a.setAttribute("href", "#");
+				v.insertBefore(a, insertBefore);
+				a.addEventListener("click", () => display(key, data));
+			}
+
+			function updateLink(key, data) {
+				let prev = undefined;
+				for (let d of document.querySelectorAll("a")) if (d.getAttribute("data-key") == key) prev = d;
+				makeLink(key, data, prev);
+				prev.parentNode.removeChild(prev);
+				if (displayedKey == key) display(key, data);
+			}
+
+			window.addEventListener("load", () => {
+					onChildAdded(child(ref(db), "teams"), c => makeLink(c.key, c.val(), document.getElementById("new")));
+					onChildChanged(child(ref(db), "teams"), c => updateLink(c.key, c.val()));
+			});
+
+			document.getElementById("new").addEventListener("click", () => {
+				let na = push(child(ref(db), "teams"));
+				let k = na.key;
+				console.log(k);
+				set(na, {
+					"name": "New Team",
+					"color1": "#ffcc00",
+					"color2": "#333333",
+				});
+			});
+
+			document.getElementById("save").addEventListener("click", () => {
+				set(child(child(ref(db), "teams"), displayedKey), getFormData());
+			});
+		</script>
+	</body>
+</html>

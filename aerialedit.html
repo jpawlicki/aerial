@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"></meta>
+		<script src="common/firebase.js" type="module"></script>
+		<script src="common/skills.js"></script>
+		<script src="common/url.js"></script>
+		<style>
+			html, body {
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				background-color: #003;
+				font-family: sans-serif;
+				color: #fff;
+			}
+			body {
+				display: grid;
+				grid-template-columns: 20em 1fr;
+			}
+			#list {
+				display: flex;
+				flex-direction: column;
+				align-content: start;
+			}
+			a {
+				color: #ddd;
+				text-decoration: none;
+			}
+			a.active {
+				font-weight: bold;
+				color: #fff;
+			}
+			a:hover {
+				text-decoration: underline;
+			}
+			label {
+				text-transform: capitalize;
+			}
+			#aerialEdit {
+				visibility: hidden;
+				height: min-content;
+			}
+			td {
+				vertical-align: top;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="list">
+			<button id="newAerial">New Aerial</button>
+		</div>
+		<table id="aerialEdit">
+			<tr><td><label for="editKey">Unique Key</label></td><td><input type="text" id="editKey" disabled></input></td></tr>
+			<tr><td><label for="editName">Name</label></td><td><input type="text" id="editName"></input></td></tr>
+			<tr><td><label for="editPortrait">Portrait</label></td><td><input type="text" id="editPortrait"></input></td></tr>
+			<tr>
+				<td><label>Skills</label></td>
+				<td>
+					<table id="skillBlock">
+						<tr>
+							<td>Skill</td>
+							<td>Known</td>
+							<td>Injured</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+			<tr><td colspan="2"><button id="save" disabled>Save Changes</button></td></tr>
+		</table>
+
+		<script type="module">
+			import { ref, child, push, get, set, onValue, onChildAdded, onChildChanged } from "https://www.gstatic.com/firebasejs/9.1.3/firebase-database.js";
+
+			let displayedKey = "";
+			let displayedData = {};
+
+			{ // Populate skill block.
+				let sblock = document.getElementById("skillBlock");
+				for (let s in Skill.SKILLS) {
+					let p = document.createElement("tr")
+					let td = c => {
+						let cc = document.createElement(c);
+						let t = document.createElement("td");
+						t.appendChild(cc);
+						p.appendChild(t);
+						return cc;
+					}
+					td("label").appendChild(document.createTextNode(s));
+					let b = td("input");
+					b.setAttribute("type", "checkbox");
+					b.setAttribute("id", "editSkill" + s.replace(/ /g, "_"));
+					b.setAttribute("data-skill", s);
+					b.setAttribute("data-type", "known");
+					b.addEventListener("input", checkSave);
+					let i = td("input");
+					i.setAttribute("type", "checkbox");
+					i.setAttribute("id", "editSkillInjured" + s.replace(/ /g, "_"));
+					i.setAttribute("data-skill", s);
+					i.setAttribute("data-type", "injury");
+					i.addEventListener("input", checkSave);
+					sblock.appendChild(p);
+				}
+			}
+			document.getElementById("editName").addEventListener("input", checkSave);
+
+			function getFormData() {
+				let o = {
+					"injuries": [],
+					"name": document.getElementById("editName").value,
+					"portrait": document.getElementById("editPortrait").value,
+					"skills": [],
+				};
+				for (let d of document.querySelectorAll("input[data-type=known]:checked")) o.skills.push(d.getAttribute("data-skill"));
+				o.skills = o.skills.sort();
+				for (let d of document.querySelectorAll("input[data-type=injury]:checked")) {
+					let i = o.skills.indexOf(d.getAttribute("data-skill"));
+					if (i >= 0) o.injuries.push(i);
+				}
+				if (o.injuries.length == 0) delete(o.injuries);
+				if (o.skills.length == 0) delete(o.skills);
+				return o;
+			}
+
+			function checkSave() {
+				document.getElementById("save").disabled = JSON.stringify(getFormData()) == JSON.stringify(displayedData);
+			}
+
+			function displayAerial(key, data) {
+				for (let a of document.querySelectorAll("#list > a")) a.setAttribute("class", a.getAttribute("href") == "#" + key ? "active" : "");
+				document.getElementById("aerialEdit").style.visibility = "visible";
+				document.getElementById("editKey").value = key;
+				document.getElementById("editName").value = data.name;
+				document.getElementById("editPortrait").value = data.portrait;
+				for (let d of document.querySelectorAll("input[type=checkbox]")) d.checked = false;
+				if (data.hasOwnProperty("skills")) {
+					for (let s of data.skills) document.getElementById("editSkill" + s.replace(/ /g, "_")).checked = true;
+				}
+				if (data.hasOwnProperty("injuries")) {
+					for (let s of data.injuries) document.getElementById("editSkillInjured" + data.skills[s].replace(/ /g, "_")).checked = true;
+				}
+				displayedData = data;
+				displayedKey = key;
+				checkSave();
+			}
+
+			function makeAerialLink(key, data, insertBefore) {
+				let v = document.getElementById("list");
+				let a = document.createElement("a");
+				a.appendChild(document.createTextNode(data.name + " (" + key + ")"));
+				a.setAttribute("data-key", key);
+				a.setAttribute("href", "#" + key);
+				v.insertBefore(a, insertBefore);
+				a.addEventListener("click", () => displayAerial(key, data));
+			}
+
+			function updateAerialLink(key, data) {
+				let prev = undefined;
+				for (let d of document.querySelectorAll("a")) if (d.getAttribute("data-key") == key) prev = d;
+				makeAerialLink(key, data, prev);
+				prev.parentNode.removeChild(prev);
+				if (displayedKey == key) displayAerial(key, data);
+			}
+
+			window.addEventListener("load", () => {
+					onChildAdded(child(ref(db), "aerials"), c => makeAerialLink(c.key, c.val(), document.getElementById("newAerial")));
+					onChildChanged(child(ref(db), "aerials"), c => updateAerialLink(c.key, c.val()));
+			});
+
+			document.getElementById("newAerial").addEventListener("click", () => {
+				let na = push(child(ref(db), "aerials"));
+				let k = na.key;
+				console.log(k);
+				set(na, {
+					"name": "New Aerial",
+					"portrait": "1.png",
+					"skills": [],
+					"injuries": [],
+				});
+			});
+
+			document.getElementById("save").addEventListener("click", () => {
+				set(child(child(ref(db), "aerials"), displayedKey), getFormData());
+			});
+		</script>
+	</body>
+</html>

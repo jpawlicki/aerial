@@ -34,7 +34,8 @@ class GameActor {
 class ControlActor {
 	// game
 	// whoami
-	// optionsActors[] // 1 per aerial - TODO: probably there is enough space to put everyone on one page, maybe make an option for that (handy when running a full team).
+	// optionsActors[] // 1 per aerial
+	// endTurnButton
 	
 	constructor(game, whoami, fieldActor, actionCommitter, parent) {
 		this.game = game;
@@ -78,11 +79,33 @@ class ControlActor {
 					}
 				});
 			}
+			this.endTurnButton = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+			this.endTurnButton.setAttribute("viewBox", "-.55 -.55 1.1 1.1");
+			let c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+			c.setAttribute("r", 0.5);
+			c.setAttribute("class", "action");
+			this.endTurnButton.appendChild(c);
+			bar.appendChild(this.endTurnButton);
+			c.style.cursor = "pointer";
+			c.addEventListener("click", () => {let revision = game.revision; actionCommitter({"revision": revision, "endturn": true});});
+			let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+			t.appendChild(document.createTextNode("End"));
+			t.style.textAnchor = "middle";
+			t.style.dominantBaseline = "middle";
+			t.style.pointerEvents = "none";
+			t.style.fontSize = "0.3px";
+			this.endTurnButton.appendChild(t);
+			this.endTurnButton.style.visibility = "hidden";
 		}
 	}
 
 	update() {
 		for (let a of this.optionsActors) a.update();
+		{
+			let endTurnOK = true;
+			for (let a of this.optionsActors) if (a.aerial.velocityRemaining[0] != 0 || a.aerial.velocityRemaining[1] != 0) endTurnOK = false;
+			this.endTurnButton.style.visibility = endTurnOK ? "visible" : "hidden";
+		}
 	}
 }
 
@@ -144,6 +167,7 @@ class OptionsActor {
 			svg.appendChild(t);
 		}
 
+		if (this.aerial.phase == Aerial.PHASE_NOTTURN || this.aerial.eliminated) return;
 		for (let s of this.aerial.skills) {
 			let options = Skill.SKILLS[s](this.aerial, this.game);
 			for (let i = 0; i < options.length; i++) {
