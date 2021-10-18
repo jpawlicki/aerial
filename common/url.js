@@ -1,6 +1,6 @@
 function getQueryParameter(key) {
 	if (window.location.search == "") return undefined;
-	for (let v of window.location.search.substring(1).query.split('&')) {
+	for (let v of window.location.search.substring(1).split('&')) {
 		let p = v.split('=');
 		if (decodeURIComponent(p[0]) == key) return decodeURIComponent(p[1]);
 	}

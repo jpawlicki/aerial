@@ -82,7 +82,8 @@
 						<tr><td>3</td><td><input type="number" step="1" min="0" id="editStartX02"></input>, <input type="number" step="1" min="0" id="editStartY02"></input></td><td><input type="number" step="1" min="0" id="editStartX12"></input>, <input type="number" step="1" min="0" id="editStartY12"></input></td></tr>
 						<tr><td>4</td><td><input type="number" step="1" min="0" id="editStartX03"></input>, <input type="number" step="1" min="0" id="editStartY03"></input></td><td><input type="number" step="1" min="0" id="editStartX13"></input>, <input type="number" step="1" min="0" id="editStartY13"></input></td></tr>
 					</table>
-				</td></tr>
+				</td>
+			</tr>
 			<tr>
 				<td><label>Map</label></td>
 				<td>
@@ -148,7 +149,7 @@
 				let svg = document.getElementById("field");
 				svg.innerHTML = "";
 				let o = getFormData();
-				let fa = new FieldActor(Field.fromJSON(JSON.stringify(o)), svg);
+				let fa = new FieldActor(Field.fromData(o), svg);
 				fa.addCellClickListener((i, j) => {
 					if (document.getElementById("ground").checked) cellData[i][j].ground = !cellData[i][j].ground;
 					else if (document.getElementById("manaadd").checked) cellData[i][j].mana = Math.min(4, cellData[i][j].mana + 1);
@@ -161,8 +162,6 @@
 			}
 
 			function checkSave() {
-				console.log(JSON.stringify(getFormData()));
-				console.log(JSON.stringify(displayedData));
 				document.getElementById("save").disabled = JSON.stringify(getFormData()) == JSON.stringify(displayedData);
 			}
 
@@ -215,15 +214,17 @@
 						}
 					}
 				}
-				let cd = [];
-				for (let c of data.cells) {
-					let nc = [];
-					for (let cc of c) {
-						nc.push({"ground": cc.ground, "mana": cc.mana});
+				if (data.hasOwnProperty("cells")) {
+					let cd = [];
+					for (let c of data.cells) {
+						let nc = [];
+						for (let cc of c) {
+							nc.push({"ground": cc.ground, "mana": cc.mana});
+						}
+						cd.push(nc);
 					}
-					cd.push(nc);
+					cellData = cd;
 				}
-				if (data.hasOwnProperty("cells")) cellData = cd;
 				document.getElementById("obstacleList").innerHTML = "";
 				if (data.hasOwnProperty("obstacles")) for (let a of data.obstacles) addObstacle(a.type, a.position[0], a.position[1]);
 				updateMap();

@@ -4,6 +4,7 @@
 		<meta charset="utf-8"></meta>
 		<script src="common/firebase.js" type="module"></script>
 		<script src="common/skills.js"></script>
+		<script src="common/url.js"></script>
 		<script src="match/render.js"></script>
 		<script src="match/control.js"></script>
 		<script src="match/logic.js"></script>
@@ -95,36 +96,33 @@
 	</head>
 	<body>
 		<div id="menu"></div>
-		<div id="control"></div>
+		<div id="control">Loading match data...</div>
 		<svg id="field"></svg>
-		<script>
-			let teams = [
-				new Team("#fc0", "#333", "Fire Ferrets"),
-				new Team("#333", "#f00", "Wolfbats"),
-			];
-			let field = new Field();
-			let g_game = 
-					new Game(
-							field,
-							teams,
-							[
-								[
-									new Aerial([0, 4], [1, 0], Math.floor(Math.random() * 80) + ".png", "Jack", teams[0], [Skill.SKILL_LIFT, Skill.SKILL_DROP, Skill.SKILL_FLY, Skill.SKILL_GLIDE, Skill.SKILL_SOAR], [], 6),
-									new Aerial([0, 3], [1, 0], Math.floor(Math.random() * 80) + ".png", "Jane", teams[0], [Skill.SKILL_LIFT, Skill.SKILL_DROP, Skill.SKILL_FLY], [], 6),
-								],
-								[
-									new Aerial([field.width - 1, 4], [-1, 0], Math.floor(Math.random() * 80) + ".png", "Evil Jack", teams[1], [], [], 6),
-									new Aerial([field.width - 1, 3], [-1, 0], Math.floor(Math.random() * 80) + ".png", "Evil Jane", teams[1], [], [], 6),
-								],
-							]);
-			let controller = new Controller(g_game);
-			let g =
-					new GameActor(
-							g_game,
-							0,
-							controller,
-							document.getElementById("field"),
-							document.getElementById("control"));
+		<script type="module">
+			import { ref, child, get, onValue } from "https://www.gstatic.com/firebasejs/9.1.3/firebase-database.js";
+
+			function updateStatus(status) {
+				document.getElementById("control").textContent = status;
+			}
+
+			get(child(child(ref(db), "matches"), getQueryParameter("matchId"))).then(match => {
+				updateStatus("Loading field...");
+				get(child(child(ref(db), "fields"), match.val().field)).then(field => {
+					updateStatus("Loading teams...");
+					Promise.all(match.val().teams.map(id => get(child(child(ref(db), "teams"), id)))).then(teams => {
+						updateStatus("Loading aerials...");
+						Promise.all(match.val().aerials.map(aerialTeam => Promise.all(aerialTeam.map(id => get(child(child(ref(db), "aerials"), id)))))).then(aerials => {
+							updateStatus("");
+							let game = Game.fromData(
+								field.val(),
+								teams.map(t => t.val()),
+								aerials.map(ag => ag.map(a => a.val())));
+							let controller = new Controller(game);
+							window.g = new GameActor(game, getQueryParameter("team"), controller, document.getElementById("field"), document.getElementById("control"));
+						});
+					});
+				});
+			});
 		</script>
 	</body>
 </html>

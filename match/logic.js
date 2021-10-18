@@ -25,6 +25,19 @@ class Game {
 		for (let ag of aerials) for (let a of ag) this.field.addAerial(a);
 	}
 
+	static fromData(field, teams, aerials) {
+		let fieldOut = Field.fromData(field);
+		let teamsOut = teams.map(t => Team.fromData(t));
+		let aerialsOut = [];
+		for (let i = 0; i < aerials.length; i++) {
+			aerialsOut.push([]);
+			for (let j = 0; j < aerials[i].length; j++) {
+				aerialsOut[i].push(Aerial.fromData(aerials[i][j], teamsOut[i], fieldOut.startPositions[i][j], [fieldOut.startPositions[i][j][0] >= fieldOut.width / 2 ? -1 : 1, 0]));
+			}
+		}
+		return new Game(fieldOut, teamsOut, aerialsOut);
+	}
+
 	clone() {
 		let g = new Game(this.field.clone(), this.teams, []);
 		g.aerials = this.aerials; // TODO: buggy - this is a shallow copy, but the field clone will do a deep copy.
@@ -39,25 +52,6 @@ class Game {
 		for (let a of this.aerials[this.teamTurn]) a.startTurn(this.field);
 		if (this.teamTurn == 0) this.turnsLeft--;
 	}
-
-	toJSON() {
-		return JSON.stringify(this);
-	}
-
-	static fromJSON(json, fieldDataFetcher, teamDataFetcher, aerialDataFetcher) {
-		let data = JSON.parse(json);
-		let field = Field.fromJSON(fieldDataDetcher(data.field.id));
-		let teams = [];
-		let aerials = [];
-		for (let team of data.teams) {
-			teams.push(Team.fromJSON(teamDataFetcher(team.id)));
-			let as = [];
-			for (let a of team.aerials) as.push(Aerial.fromJSON(aerialDataFetcher(a)));
-			aerials.push(as);
-		}
-		// TODO: position aerials on the field
-		return new Game(field, teams, aerials);
-	}
 }
 
 class Field {
@@ -69,26 +63,7 @@ class Field {
 	// startPositions
 	// name
 
-	constructor() {
-		this.width = 12;
-		this.height = 12;
-		this.cells = [];
-		for (let i = 0; i < this.width; i++) {
-			this.cells.push([]);
-			for (let j = 0; j < this.height; j++) {
-				this.cells[i].push(new Cell(j <= Math.round(Math.random()) - 1, Math.floor((this.height - j - 1 + Math.random() * 2) / 3), true));
-			}
-		}
-		this.obstacles = [];
-		for (let i = 0; i < 2; i++) {
-			this.obstacles.push(new Obstacle({}, [Math.floor(Math.random() * this.width), Math.floor(Math.random() * (this.height - 1) + 1)]));
-		}
-		this.aerials = [];
-		this.name = "Random Field " + Math.floor(Math.random() * 1000);
-	}
-
-	static fromJSON(json) {
-		let o = JSON.parse(json);
+	static fromData(o) {
 		let f = new Field();
 		f.name = o.name;
 		f.width = o.dimensions[0];
@@ -104,7 +79,7 @@ class Field {
 				f.cells[i][j] = new Cell(o.cells[i][j].ground, o.cells[i][j].mana, true);
 			}
 		}
-		this.startPositions = o.startPositions;
+		f.startPositions = o.startPositions;
 		f.aerials = [];
 		return f;
 	}
@@ -114,9 +89,9 @@ class Field {
 	}
 
 	collisionTester(aerial, position) {
-		// Aerial-obstacle collisions.
+		// TODO Aerial-obstacle collisions.
 
-		// Aerial-ground collisions.
+		// TODO Aerial-ground collisions.
 
 		// Aerial-aerial collisions.
 		for (let a of this.aerials) {
@@ -236,6 +211,18 @@ class Aerial {
 		this.eliminated = false;
 	}
 
+	static fromData(data, team, position, velocity) {
+		return new Aerial(
+				position,
+				velocity,
+				data.portrait,
+				data.name,
+				team,
+				data.skills,
+				data.hasOwnProperty("injuries") ? data.injuries : [],
+				6);
+	}
+
 	addMotion(dv) {
 		this.velocityRemaining[0] += dv[0];
 		this.velocityRemaining[1] += dv[1];
@@ -343,5 +330,9 @@ class Team {
 		this.color1 = color1;
 		this.color2 = color2;
 		this.name = name;
+	}
+
+	static fromData(data) {
+		return new Team(data.color1, data.color2, data.name);
 	}
 }

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"></meta>
+		<script src="common/firebase.js" type="module"></script>
+		<script src="common/skills.js"></script>
+		<script src="common/url.js"></script>
+		<script src="match/logic.js"></script>
+		<script src="match/render.js"></script>
+		<style>
+			html, body {
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				background-color: #003;
+				font-family: sans-serif;
+				color: #fff;
+			}
+			body {
+				display: grid;
+				grid-template-columns: 1fr;
+			}
+			a {
+				color: #ddd;
+				text-decoration: none;
+			}
+			a.active {
+				font-weight: bold;
+				color: #fff;
+			}
+			a:hover {
+				text-decoration: underline;
+			}
+			#edit {
+				height: min-content;
+			}
+			td {
+				vertical-align: top;
+			}
+			#controlnull {
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<table id="edit">
+			<tr><td><label for="editField">Field</label></td><td><select data-type="field" id="editField"></select></td></tr>
+			<tr>
+				<td><label>Players</label></td>
+				<td>
+					<table>
+						<tr><td><select data-type="team" id="editTeam0"></select></td><td><select data-type="team" id="editTeam1"></select></td></tr>
+						<tr><td><select data-type="aerial" id="editPlayer00"></select></td><td><select data-type="aerial" id="editPlayer10"></select></td></tr>
+						<tr><td><select data-type="aerial" id="editPlayer01"></select></td><td><select data-type="aerial" id="editPlayer11"></select></td></tr>
+						<tr><td><select data-type="aerial" id="editPlayer02"></select></td><td><select data-type="aerial" id="editPlayer12"></select></td></tr>
+						<tr><td><select data-type="aerial" id="editPlayer03"></select></td><td><select data-type="aerial" id="editPlayer13"></select></td></tr>
+					</table>
+				</td>
+			</tr>
+			<tr><td>Preview</td><td><svg id="preview"></svg></td></tr>
+			<tr><td colspan="2"><button id="save">Begin</button></td></tr>
+		</table>
+		<div id="controlnull"></div>
+
+		<script type="module">
+			import { ref, child, push, get, set, onValue, onChildAdded, onChildChanged } from "https://www.gstatic.com/firebasejs/9.1.3/firebase-database.js";
+
+			let cache = {"team": {}, "aerial": {}, "field": {}};
+
+			function getFormData() {
+				let v = id => document.getElementById(id).value;
+				return {
+					"field": v("editField"),
+					"teams": [v("editTeam0"), v("editTeam1")],
+					"aerials": [
+						[v("editPlayer00"), v("editPlayer01"), v("editPlayer02"), v("editPlayer03")],
+						[v("editPlayer10"), v("editPlayer11"), v("editPlayer12"), v("editPlayer13")],
+					],
+				};
+			}
+
+			function preview() {
+				let data = getFormData();
+				document.getElementById("preview").innerHTML = "";
+				document.getElementById("controlnull").innerHTML = "";
+				new GameActor(
+						Game.fromData(
+							cache.field[data.field],
+							data.teams.map(t => cache.team[t]),
+							data.aerials.map(as => as.map(a => cache.aerial[a]))),
+						0,
+						null,
+						document.getElementById("preview"),
+						document.getElementById("controlnull"));
+			}
+			for (let s of document.querySelectorAll("select")) s.addEventListener("input", preview);
+
+			function addOption(type, key, value) {
+				cache[type][key] = value;
+				for (let s of document.querySelectorAll("select[data-type=" + type + "]")) {
+					let o = document.createElement("option");
+					o.setAttribute("value", key);
+					o.appendChild(document.createTextNode(value.name));
+					s.appendChild(o);
+				}
+			}
+
+			window.addEventListener("load", () => {
+					onChildAdded(child(ref(db), "teams"), c => addOption("team", c.key, c.val()));
+					onChildAdded(child(ref(db), "aerials"), c => addOption("aerial", c.key, c.val()));
+					onChildAdded(child(ref(db), "fields"), c => addOption("field", c.key, c.val()));
+			});
+
+			document.getElementById("save").addEventListener("click", () => {
+				let data = getFormData();
+				let nu = push(child(ref(db), "matches"));
+				set(nu, getFormData());
+				let a = document.createElement("a");
+				a.appendChild(document.createTextNode(nu.key));
+				a.setAttribute("href", "match.html?matchId=" + nu.key + "&team=0");
+				let saveButton = document.getElementById("save");
+				saveButton.parentNode.insertBefore(a, saveButton);
+				saveButton.parentNode.removeChild(saveButton);
+			});
+		</script>
+	</body>
+</html>

@@ -22,7 +22,7 @@ class GameActor {
 		this.fieldActor = new FieldActor(game.field, svg);
 		this.controlActor = new ControlActor(game, whoami, this.fieldActor, a => controller.submitAction(a), control);
 		let othis = this;
-		controller.addListener(() => othis.update());
+		if (controller != null) controller.addListener(() => othis.update());
 	}
 
 	update() {
