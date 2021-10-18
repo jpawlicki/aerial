@@ -190,10 +190,12 @@ class FieldActor {
 	// cellActors[][]
 	// obstacleActors[]
 	// aerialActors[]
+	// cellClickListeners[]
 
 	constructor(field, parent) {
 		this.field = field;
 		this.parent = parent;
+		this.cellClickListeners = [];
 		parent.setAttribute("viewBox", "0 0 " + field.width + " " + field.height);
 		this.cellActors = [];
 		let cellGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -201,7 +203,7 @@ class FieldActor {
 		for (let i = 0; i < field.width; i++) {
 			this.cellActors.push([]);
 			for (let j = 0; j < field.height; j++) {
-				this.cellActors[i].push(new CellActor(field.cells[i][j], (i, j) => this.getCellActor(i, j), [i, j], field.width, field.height, cellGroup));
+				this.cellActors[i].push(new CellActor(field.cells[i][j], (i, j) => this.getCellActor(i, j), [i, j], field.width, field.height, cellGroup, this.onCellClick.bind(this, i, j)));
 			}
 		}
 		for (let a of this.cellActors) for (let c of a) c.recolor(CellActor.colorMana);
@@ -213,6 +215,14 @@ class FieldActor {
 		parent.appendChild(aerGroup);
 		this.aerialActors = [];
 		for (let o of field.aerials) this.aerialActors.push(new AerialActor(o, this.field, aerGroup));
+	}
+
+	addCellClickListener(listener) {
+		this.cellClickListeners.push(listener);
+	}
+
+	onCellClick(i, j) {
+		for (let l of this.cellClickListeners) l(i, j);
 	}
 
 	clearOverrides() {
@@ -227,6 +237,13 @@ class FieldActor {
 			this.aerialActors[i].override = field.aerials[i];
 			this.aerialActors[i].update();
 		}
+	}
+
+	setCellLabel(i, j, label) {
+		if (isNaN(i) || isNaN(j)) return;
+		if (i >= this.cellActors.length) return;
+		if (j >= this.cellActors[i].length) return;
+		this.cellActors[i][j].setLabel(label);
 	}
 
 	getCellActor(i, j) { return this.cellActors[i][j]; }
@@ -246,20 +263,31 @@ class CellActor {
 	// color
 	// label
 	// position
+	// clickListener
 
-	constructor(cell, getCellActor, position, fieldWidth, fieldHeight, parent) {
+	constructor(cell, getCellActor, position, fieldWidth, fieldHeight, parent, clickListener) {
 		this.cell = cell;
 		this.getCellActor = getCellActor;
 		this.position = position;
 		this.parent = parent;
 		this.fieldHeight = fieldHeight;
 		this.fieldWidth = fieldWidth;
+		this.clickListener = clickListener;
 		this.rsurfaces = [];
-		for (let i = 0; i < 5; i++) this.rsurfaces.push(document.createElementNS("http://www.w3.org/2000/svg", "path"));
+		for (let i = 0; i < 2; i++) this.rsurfaces.push(document.createElementNS("http://www.w3.org/2000/svg", "path"));
 		let x = p => RenderUtil.translatePoints(p, position[0], fieldHeight - position[1] - 1);
 		this.rsurfaces[0].setAttribute("d", RenderUtil.pointsToPath(x([[0, 0], [1.02, 0], [1.02, 1.02], [0, 1.02]])));
 		this.rsurfaces[1].setAttribute("d", RenderUtil.pointsToPath(x([[0, .67], [.33, 1.02], [0, 1.33], [-.33, 1.02]])));
 		for (let rsurface of this.rsurfaces) parent.appendChild(rsurface);
+		this.rsurfaces[0].addEventListener("click", clickListener);
+		this.label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+		this.label.style.textAnchor = "middle";
+		this.label.style.dominantBaseline = "middle";
+		this.label.style.pointerEvents = "none";
+		this.label.style.fontSize = "0.3px";
+		this.label.setAttribute("x", x([[.5, .5]])[0][0]);
+		this.label.setAttribute("y", x([[.5, .5]])[0][1]);
+		parent.appendChild(this.label);
 	}
 
 	recolor(f) {
@@ -274,6 +302,10 @@ class CellActor {
 		this.rsurfaces[1].style.fill = "rgba(0, 0, 0, 0)";
 		if (cl == cb && c != clb) this.rsurfaces[1].style.fill = cl;
 		if (cl != cb && c == clb) this.rsurfaces[1].style.fill = c;
+	}
+
+	setLabel(label) {
+		this.label.textContent = label;
 	}
 
 	static colorMana(cell) {

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"></meta>
+		<script src="common/firebase.js" type="module"></script>
+		<script src="common/url.js"></script>
+		<script src="match/logic.js"></script>
+		<script src="match/render.js"></script>
+		<style>
+			html, body {
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				background-color: #003;
+				font-family: sans-serif;
+				color: #fff;
+			}
+			body {
+				display: grid;
+				grid-template-columns: 20em 1fr;
+			}
+			#list {
+				display: flex;
+				flex-direction: column;
+				align-content: start;
+			}
+			a {
+				color: #ddd;
+				text-decoration: none;
+			}
+			a.active {
+				font-weight: bold;
+				color: #fff;
+			}
+			a:hover {
+				text-decoration: underline;
+			}
+			label {
+				text-transform: capitalize;
+			}
+			#edit {
+				visibility: hidden;
+				height: min-content;
+			}
+			td {
+				vertical-align: top;
+			}
+			input[type=number] {
+				width: 2.3em;
+			}
+			svg {
+				cursor: pointer;
+			}
+			#startpostable tr > td:nth-child(n + 2) {
+				width: 10em;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="list">
+			<button id="new">New Field</button>
+		</div>
+		<table id="edit">
+			<tr><td><label for="editKey">Unique Key</label></td><td><input type="text" id="editKey" disabled></input></td></tr>
+			<tr><td><label for="editName">Name</label></td><td><input type="text" id="editName"></input></td></tr>
+			<tr><td><label>Dimensions</label></td><td><input type="number" step="1" min="0" id="editX"></input> x <input type="number" step="1" min="0" id="editY"></input></td></tr>
+			<tr>
+				<td><label>Obstacles</label></td>
+				<td>
+					<div id="obstacleList"></div>
+					<button id="newObstacle">Add Obstacle</button>
+				</td>
+			</tr>
+			<tr>
+				<td><label>Start Positions</label></td>
+				<td>
+					<table id="startpostable">
+						<tr><td></td><td>Team A</td><td>Team B</td></tr>
+						<tr><td>1</td><td><input type="number" step="1" min="0" id="editStartX00"></input>, <input type="number" step="1" min="0" id="editStartY00"></input></td><td><input type="number" step="1" min="0" id="editStartX10"></input>, <input type="number" step="1" min="0" id="editStartY10"></input></td></tr>
+						<tr><td>2</td><td><input type="number" step="1" min="0" id="editStartX01"></input>, <input type="number" step="1" min="0" id="editStartY01"></input></td><td><input type="number" step="1" min="0" id="editStartX11"></input>, <input type="number" step="1" min="0" id="editStartY11"></input></td></tr>
+						<tr><td>3</td><td><input type="number" step="1" min="0" id="editStartX02"></input>, <input type="number" step="1" min="0" id="editStartY02"></input></td><td><input type="number" step="1" min="0" id="editStartX12"></input>, <input type="number" step="1" min="0" id="editStartY12"></input></td></tr>
+						<tr><td>4</td><td><input type="number" step="1" min="0" id="editStartX03"></input>, <input type="number" step="1" min="0" id="editStartY03"></input></td><td><input type="number" step="1" min="0" id="editStartX13"></input>, <input type="number" step="1" min="0" id="editStartY13"></input></td></tr>
+					</table>
+				</td></tr>
+			<tr>
+				<td><label>Map</label></td>
+				<td>
+					<div><svg id="field"></svg></div>
+					<div>
+						<label><input type="radio" name="op" id="ground" checked></input>Toggle Ground</label>
+						<label><input type="radio" name="op" id="manaadd"></input>Add Mana</label>
+						<label><input type="radio" name="op" id="manaremove"></input>Remove Mana</label>
+					</div>
+				</td>
+			</tr>
+			<tr><td colspan="2"><button id="save" disabled>Save Changes</button></td></tr>
+		</table>
+
+		<script type="module">
+			import { ref, child, push, get, set, onValue, onChildAdded, onChildChanged } from "https://www.gstatic.com/firebasejs/9.1.3/firebase-database.js";
+
+			let displayedKey = "";
+			let displayedData = {};
+			let cellData = [];
+			let obstacles = [];
+
+			for (let d of document.querySelectorAll("input")) d.addEventListener("input", checkSave);
+			for (let d of document.querySelectorAll("input")) d.addEventListener("input", updateMap);
+
+			function getFormData() {
+				let o = {
+					"cells": cellData,
+					"dimensions": [document.getElementById("editX").value, document.getElementById("editY").value],
+					"name": document.getElementById("editName").value,
+					"obstacles": [],
+					"startPositions": [],
+				};
+				while (cellData.length < o.dimensions[0]) cellData.push([]);
+				cellData = cellData.slice(0, o.dimensions[0]);
+				for (let i = 0; i < cellData.length; i++) {
+					while (cellData[i].length < o.dimensions[1]) cellData[i].push({"ground": false, "mana": 0});
+					cellData[i] = cellData[i].slice(0, o.dimensions[1]);
+				}
+				for (let i = 0; i < 2; i++) {
+					o.startPositions.push([]);
+					for (let j = 0; j < 4; j++) {
+						let x = parseInt(document.getElementById("editStartX" + i + j).value);
+						let y = parseInt(document.getElementById("editStartY" + i + j).value);
+						if (x == "") x = 0;
+						if (y == "") y = 0;
+						o.startPositions[i][j] = [x, y];
+					}
+				}
+				for (let d of document.querySelectorAll("#obstacleList > div")) {
+					let t = d.querySelector("select").value;
+					let x = parseInt(d.querySelector("input:nth-of-type(1)").value);
+					let y = parseInt(d.querySelector("input:nth-of-type(2)").value);
+					o.obstacles.push({"position": [x, y], "type": t});
+				}
+				if (o.obstacles.length == 0) delete(o.obstacles);
+
+				o.cells = cellData;
+				return o;
+			}
+
+			function updateMap() {
+				let svg = document.getElementById("field");
+				svg.innerHTML = "";
+				let o = getFormData();
+				let fa = new FieldActor(Field.fromJSON(JSON.stringify(o)), svg);
+				fa.addCellClickListener((i, j) => {
+					if (document.getElementById("ground").checked) cellData[i][j].ground = !cellData[i][j].ground;
+					else if (document.getElementById("manaadd").checked) cellData[i][j].mana = Math.min(4, cellData[i][j].mana + 1);
+					else if (document.getElementById("manaremove").checked) cellData[i][j].mana = Math.max(0, cellData[i][j].mana - 1);
+					updateMap();
+					checkSave();
+				});
+				for (let j = 0; j < 4; j++) fa.setCellLabel(o.startPositions[0][j][0], o.startPositions[0][j][1], "A" + (j + 1));
+				for (let j = 0; j < 4; j++) fa.setCellLabel(o.startPositions[1][j][0], o.startPositions[1][j][1], "B" + (j + 1));
+			}
+
+			function checkSave() {
+				console.log(JSON.stringify(getFormData()));
+				console.log(JSON.stringify(displayedData));
+				document.getElementById("save").disabled = JSON.stringify(getFormData()) == JSON.stringify(displayedData);
+			}
+
+			function addObstacle(type, px, py) {
+				let p = document.getElementById("obstacleList");
+				let d = document.createElement("div");
+				let s = document.createElement("select");
+				for (let t in ObstacleType.TYPES) {
+					let o = document.createElement("option");
+					o.appendChild(document.createTextNode(t));
+					s.appendChild(o);
+				}
+				if (type != undefined) s.value = type;
+				d.appendChild(s);
+				let x = document.createElement("input");
+				x.setAttribute("type", "number");
+				x.setAttribute("min", 0);
+				x.value = px == undefined ? 0 : px;
+				d.appendChild(x)
+				let y = document.createElement("input");
+				y.setAttribute("type", "number");
+				y.setAttribute("min", 0);
+				y.value = py == undefined ? 0 : py;
+				d.appendChild(y)
+				let b = document.createElement("button");
+				b.appendChild(document.createTextNode("-"));
+				b.addEventListener("click", () => { d.parentNode.removeChild(d); checkSave(); updateMap();});
+				d.appendChild(b);
+				p.appendChild(d);
+				for (let e of d.querySelectorAll("select, input")) e.addEventListener("input", () => {checkSave(); updateMap(); });
+				checkSave();
+				updateMap();
+			}
+			document.getElementById("newObstacle").addEventListener("click", addObstacle);
+
+			function display(key, data) {
+				for (let a of document.querySelectorAll("#list > a")) a.setAttribute("class", a.getAttribute("href") == "#" + key ? "active" : "");
+				document.getElementById("edit").style.visibility = "visible";
+				document.getElementById("editKey").value = key;
+				document.getElementById("editName").value = data.name;
+				if (data.hasOwnProperty("dimensions")) {
+					document.getElementById("editX").value = data.dimensions[0];
+					document.getElementById("editY").value = data.dimensions[1];
+				}
+				if (data.hasOwnProperty("startPositions")) {
+					for (let i = 0; i < 2; i++) {
+						for (let j = 0; j < 4; j++) {
+							document.getElementById("editStartX" + i + j).value = data.startPositions[i][j][0];
+							document.getElementById("editStartY" + i + j).value = data.startPositions[i][j][1];
+						}
+					}
+				}
+				let cd = [];
+				for (let c of data.cells) {
+					let nc = [];
+					for (let cc of c) {
+						nc.push({"ground": cc.ground, "mana": cc.mana});
+					}
+					cd.push(nc);
+				}
+				if (data.hasOwnProperty("cells")) cellData = cd;
+				document.getElementById("obstacleList").innerHTML = "";
+				if (data.hasOwnProperty("obstacles")) for (let a of data.obstacles) addObstacle(a.type, a.position[0], a.position[1]);
+				updateMap();
+				displayedData = data;
+				displayedKey = key;
+				checkSave();
+			}
+
+			function makeLink(key, data, insertBefore) {
+				let v = document.getElementById("list");
+				let a = document.createElement("a");
+				a.appendChild(document.createTextNode(data.name + " (" + key + ")"));
+				a.setAttribute("data-key", key);
+				a.setAttribute("href", "#");
+				v.insertBefore(a, insertBefore);
+				a.addEventListener("click", () => display(key, data));
+			}
+
+			function updateLink(key, data) {
+				let prev = undefined;
+				for (let d of document.querySelectorAll("a")) if (d.getAttribute("data-key") == key) prev = d;
+				makeLink(key, data, prev);
+				prev.parentNode.removeChild(prev);
+				if (displayedKey == key) display(key, data);
+			}
+
+			window.addEventListener("load", () => {
+					onChildAdded(child(ref(db), "fields"), c => makeLink(c.key, c.val(), document.getElementById("new")));
+					onChildChanged(child(ref(db), "fields"), c => updateLink(c.key, c.val()));
+			});
+
+			document.getElementById("new").addEventListener("click", () => {
+				let na = push(child(ref(db), "fields"));
+				let k = na.key;
+				set(na, {
+					"name": "New Field",
+					"dimensions": [0, 0],
+				});
+			});
+
+			document.getElementById("save").addEventListener("click", () => {
+				set(child(child(ref(db), "fields"), displayedKey), getFormData());
+			});
+		</script>
+	</body>
+</html>

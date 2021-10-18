@@ -46,7 +46,7 @@ class Game {
 
 	static fromJSON(json, fieldDataFetcher, teamDataFetcher, aerialDataFetcher) {
 		let data = JSON.parse(json);
-		let field = Field.fromJSON(fieldDataDetcher(data.field.id)));
+		let field = Field.fromJSON(fieldDataDetcher(data.field.id));
 		let teams = [];
 		let aerials = [];
 		for (let team of data.teams) {
@@ -66,6 +66,7 @@ class Field {
 	// cells[][] // of Cell
 	// obstacles[]
 	// aerials[]
+	// startPositions
 	// name
 
 	constructor() {
@@ -84,6 +85,28 @@ class Field {
 		}
 		this.aerials = [];
 		this.name = "Random Field " + Math.floor(Math.random() * 1000);
+	}
+
+	static fromJSON(json) {
+		let o = JSON.parse(json);
+		let f = new Field();
+		f.name = o.name;
+		f.width = o.dimensions[0];
+		f.height = o.dimensions[1];
+		f.obstacles = [];
+		if (o.hasOwnProperty("obstacles")) {
+			for (let oo of o.obstacles) f.obstacles.push(new Obstacle(ObstacleType.TYPES[oo.type], oo.position));
+		}
+		f.cells = [];
+		for (let i = 0; i < f.width; i++) {
+			f.cells.push([]);
+			for (let j = 0; j < f.height; j++) {
+				f.cells[i][j] = new Cell(o.cells[i][j].ground, o.cells[i][j].mana, true);
+			}
+		}
+		this.startPositions = o.startPositions;
+		f.aerials = [];
+		return f;
 	}
 
 	addAerial(aerial) {
@@ -165,13 +188,17 @@ class ObstacleType {
 	// injuryFactor
 	// description
 
-	constructor(height, width, movable, injuryFactor, description) {
+	constructor(height, width, movable, referee, injuryFactor, description) {
 		this.height = height;
 		this.width = width;
 		this.movable = movable;
 		this.injuryFactor = injuryFactor;
 		this.description = description;
 	}
+
+	static TYPES = {
+		"balloon": new ObstacleType(1, 1, true, false, 0.1, "A balloon. Touching it eliminates an aerial but rarely injures them."),
+	};
 }
 
 class Aerial {
