@@ -18,6 +18,7 @@
 			}
 			body {
 				display: grid;
+				grid-template-rows: min-content 1fr;
 				grid-template-columns: 20em 1fr;
 			}
 			#list {
@@ -55,9 +56,21 @@
 			#startpostable tr > td:nth-child(n + 2) {
 				width: 10em;
 			}
+			#navbar {
+				grid-column: 1 / 3;
+				display: flex;
+				justify-content: space-around;
+				background-color: #002;
+			}
 		</style>
 	</head>
 	<body>
+		<div id="navbar">
+			<a href="aerialedit.html">Aerials</a>
+			<a href="fieldedit.html" disabled>Fields</a>
+			<a href="matchedit.html">Matches</a>
+			<a href="teamedit.html">Teams</a>
+		</div>
 		<div id="list">
 			<button id="new">New Field</button>
 		</div>
@@ -236,7 +249,7 @@
 			function makeLink(key, data, insertBefore) {
 				let v = document.getElementById("list");
 				let a = document.createElement("a");
-				a.appendChild(document.createTextNode(data.name + " (" + key + ")"));
+				a.appendChild(document.createTextNode(data.name));
 				a.setAttribute("data-key", key);
 				a.setAttribute("href", "#");
 				v.insertBefore(a, insertBefore);

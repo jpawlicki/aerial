@@ -1,3 +1,6 @@
+const COLLISION_INJURY_START = 5;
+const COLLISION_INJURY_STEP = 1;
+
 class LogicUtil {
 	// Compares two positions for equality.
 	static equal(a, b) {
@@ -13,6 +16,7 @@ class Game {
 	// revision
 	// turnsLeft
 	// round
+	// scores
 
 	constructor(field, teams, aerials) {
 		this.field = field;
@@ -20,9 +24,11 @@ class Game {
 		this.teamTurn = 0;
 		this.aerials = aerials;
 		this.revision = 0;
-		this.turnsLeft = 20;
+		this.turnsLeft = 10;
 		this.round = 1;
+		this.scores = teams.map(t => 0);
 		for (let ag of aerials) for (let a of ag) this.field.addAerial(a);
+		if (this.aerials.length > 0) for (let a of this.aerials[0]) a.startTurn();
 	}
 
 	static fromData(field, teams, aerials) {
@@ -51,6 +57,35 @@ class Game {
 		this.teamTurn = (this.teamTurn + 1) % this.teams.length;
 		for (let a of this.aerials[this.teamTurn]) a.startTurn(this.field);
 		if (this.teamTurn == 0) this.turnsLeft--;
+	}
+
+	checkRoundEnd() {
+		let aerialsRemaining = this.aerials.map(as => as.filter(a => !a.eliminated).length);
+		let maxRemaining = aerialsRemaining.reduce((a, b) => Math.max(a, b));
+		let knockout = aerialsRemaining.filter(c => c != 0).length <= 1;
+		if ((this.turnsLeft <= 0 && !(aerialsRemaining.filter(c => c == maxRemaining).length > 1)) || knockout) {
+			if (knockout) {
+				let winner = 0;
+				for (let i = 0; i < aerialsRemaining.length; i++) if (aerialsRemaining[i] > 0) winner = i;
+				for (let i = 0; i < this.scores.length; i++) this.scores[i] = i == winner ? 3 : 0;
+				this.round = 4;
+			} else {
+				for (let i = 0; i < aerialsRemaining.length; i++) if (aerialsRemaining[i] == maxRemaining) this.scores[i]++;
+			}
+			if (this.round < 4) {	
+				this.teamTurn = 0;
+				this.round++;
+				this.turnsLeft = 10;
+				for (let i = 0; i < this.aerials.length; i++) {
+					for (let j = 0; j < this.aerials[i].length; j++) {
+						this.aerials[i][j].resetForNewRound(this.field.startPositions[i][j], [this.field.startPositions[i][j][0] >= this.field.width / 2 ? -1 : 1, 0]);
+					}
+				}
+				for (let a of this.aerials[0]) a.startTurn();
+			} else {
+				for (let ag of this.aerials) for (let a of ag) a.phase = Aerial.PHASE_NOTTURN;
+			}
+		}
 	}
 }
 
@@ -88,19 +123,54 @@ class Field {
 		this.aerials.push(aerial);
 	}
 
-	collisionTester(aerial, position) {
-		// TODO Aerial-obstacle collisions.
+	collisionTester(randomizer, aerial, position) {
+		// Aerial-obstacle collisions.
+		let v = Math.abs(aerial.velocity[0]) + Math.abs(aerial.velocity[1]);
+		for (let o of this.obstacles) {
+			if (o.containsPoint(position)) {
+				v *= o.injuryFactor;
+				aerial.addInjury(Math.ceil((v - COLLISION_INJURY_START + 1) / COLLISION_INJURY_STEP), randomizer);
+				aerial.eliminated = true;
+				return true;
+			}
+		}
 
-		// TODO Aerial-ground collisions.
+		// Aerial-ground, aerial-out-of-bounds collisions.
+		if (position[0] < 0 || position[1] < 0 || position[0] >= this.width || position[1] >= this.height || this.cells[position[0]][position[1]].ground) {
+			aerial.addInjury(Math.ceil((v - COLLISION_INJURY_START + 1) / COLLISION_INJURY_STEP), randomizer);
+			aerial.eliminated = true;
+			return true;
+		}
+		
 
 		// Aerial-aerial collisions.
 		for (let a of this.aerials) {
 			if (a == aerial) continue;
-			// TODO: Don't count eliminated aerials.
+			if (a.eliminated) continue;
 			if (LogicUtil.equal(a.position, position)) {
-				a.addMotion(aerial.velocity);
+				let aInjuries = Math.ceil((v - COLLISION_INJURY_START + 1) / COLLISION_INJURY_STEP);
+				let aerialInjuries = Math.ceil((v - COLLISION_INJURY_START + 1) / COLLISION_INJURY_STEP);
+				let dv = aerial.velocity.map(i => i);
+
+				if (a.team != aerial.team) {
+					if (aInjuries > 0 && aerial.hasSkill(Skill.SKILL_WICKED)) aInjuries++;
+					if (aerialInjuries > 0 && a.hasSkill(Skill.SKILL_WICKED)) aerialInjuries++;
+
+					if (aerial.hasSkill(Skill.SKILL_WINDING)) a.breath = Math.max(0, a.breath - 3);
+					if (a.hasSkill(Skill.SKILL_WINDING)) aerial.breath = Math.max(0, aerial.breath - 3);
+					if (a.hasSkill(Skill.IMPLACABLE)) {
+						dv[0] -= Math.sign(dv[0]);
+						dv[1] -= Math.sign(dv[1]);
+					}
+				}
+
+				if (aerialInjuries > 0) aerial.addInjury(aerialInjuries, randomizer);
+				if (aInjuries > 0) a.addInjury(aInjuries, randomizer);
+
+				a.addMotion(dv);
 				aerial.velocity = [0, 0];
 				aerial.velocityRemaining = [0, 0];
+
 				return true;
 			}
 		}
@@ -122,7 +192,7 @@ class Field {
 		c.height = this.height;
 		c.width = this.width;
 		c.cells = this.cells; // shallow copy
-		c.obstalces = this.obstacles.map(o => o.clone());
+		c.obstacles = this.obstacles.map(o => o.clone());
 		c.aerials = this.aerials.map(a => a.clone());
 		c.name = this.name;
 		return c;
@@ -144,11 +214,25 @@ class Cell {
 
 class Obstacle {
 	// type
-	// position // top-left
+	// position // bottom-left
 
 	constructor(type, position) {
 		this.type = type;
 		this.position = position;
+	}
+
+	containsPoint(position) {
+		return position[0] >= this.position[0] && position[1] >= this.position[1] && position[0] < this.position[0] + this.type.width && position[1] < this.position[1] + this.type.height;
+	}
+
+	occupiedPositions() {
+		let p = [];
+		for (let i = 0; i < this.type.width; i++) {
+			for (let j = 0; j < this.type.height; j++) {
+				p.push([this.position[0] + i, this.position[1] + j]);
+			}
+		}
+		return p;
 	}
 
 	clone() {
@@ -162,17 +246,20 @@ class ObstacleType {
 	// movable
 	// injuryFactor
 	// description
+	// referee
 
 	constructor(height, width, movable, referee, injuryFactor, description) {
 		this.height = height;
 		this.width = width;
 		this.movable = movable;
+		this.referee = referee;
 		this.injuryFactor = injuryFactor;
 		this.description = description;
 	}
 
 	static TYPES = {
-		"balloon": new ObstacleType(1, 1, true, false, 0.1, "A balloon. Touching it eliminates an aerial but rarely injures them."),
+		"balloon": new ObstacleType(1, 1, true, false, 0, "A balloon. Aerials that collide with it are eliminated but never injured."),
+		"referee": new ObstacleType(1, 1, true, true, 1, "A referee. Aerials that collide with them are eliminated, and they can assign penalties."),
 	};
 }
 
@@ -190,25 +277,27 @@ class Aerial {
 	// phase
 	// fractionalPos[] // The "true" position of aerial as they move along the flight line.
 	// eliminated
+	// historyPoints[] // Previous fractional positions this turn
 
 	static PHASE_PREFLIGHT = 1;
 	static PHASE_MIDLIGHT = 2;
 	static PHASE_NOTTURN = 3;
 
-	constructor(position, velocity, portrait, name, team, skills, injuries, breath) {
-		this.position = position;
+	constructor(position, velocity, portrait, name, team, skills, injuries) {
+		this.position = [position[0], position[1]];
 		this.velocity = velocity;
 		this.portrait = portrait;
 		this.name = name;
 		this.team = team;
 		this.skills = skills;
 		this.injuries = injuries;
-		this.breath = breath;
+		this.breath = this.getMaxBreath();
 		this.velocityRemaining = [velocity[0], velocity[1]];
 		this.skillCount = 0;
-		this.phase = Aerial.PHASE_PREFLIGHT;
+		this.phase = Aerial.PHASE_NOTTURN;
 		this.fractionalPosition = [position[0] + 0.5, position[1] + 0.5];
 		this.eliminated = false;
+		this.historyPoints = [];
 	}
 
 	static fromData(data, team, position, velocity) {
@@ -219,8 +308,18 @@ class Aerial {
 				data.name,
 				team,
 				data.skills,
-				data.hasOwnProperty("injuries") ? data.injuries : [],
-				6);
+				data.hasOwnProperty("injuries") ? data.injuries : []);
+	}
+
+	addInjury(amount, randomizer) {
+		if (this.hasSkill(Skill.SKILL_TOUGH)) amount--;
+		while (amount > 0) {
+			let possibilities = [];
+			for (let i = 0; i < this.skills.length; i++) if (this.injuries.indexOf(i) == -1) possibilities.push(i);
+			if (possibilities.length == 0) return;
+			this.injuries.push(possibilities[Math.floor(randomizer() * possibilities.length)]);
+			amount--;
+		}
 	}
 
 	addMotion(dv) {
@@ -228,6 +327,12 @@ class Aerial {
 		this.velocityRemaining[1] += dv[1];
 		this.velocity[0] += dv[0];
 		this.velocity[1] += dv[1];
+	}
+
+	changePosition(newPosition) {
+		this.historyPoints.push(this.fractionalPosition);
+		this.fractionalPosition = [this.fractionalPosition[0] - this.position[0] + newPosition[0], this.fractionalPosition[1] - this.position[1] + newPosition[1]];
+		this.position = newPosition.map(i => i);
 	}
 
 	distanceTo(position) {
@@ -241,6 +346,7 @@ class Aerial {
 	}
 
 	endTurn(field) {
+		this.historyPoints = [];
 		this.velocity[1]--;
 		this.velocityRemaining[0] = this.velocity[0];
 		this.velocityRemaining[1] = this.velocity[1];
@@ -248,6 +354,8 @@ class Aerial {
 		this.phase = Aerial.PHASE_NOTTURN;
 		{
 			let breathRegain = 2;
+			if (this.hasSkill(Skill.SKILL_SKYDIVER) && field.getCell(this.position).mana == 0) breathRegain++;
+			if (this.hasSkill(Skill.SKILL_GROUND_EFFECT) && field.getCell(this.position).mana >= 3) breathRegain++;
 			while (breathRegain > 0) {
 				if (this.breath + 1 <= this.getMaxBreath()) this.breath++;
 				breathRegain--;
@@ -255,8 +363,19 @@ class Aerial {
 		}
 	}
 
+	resetForNewRound(position, velocity) {
+		this.position = [position[0], position[1]];
+		this.velocity = velocity;
+		this.velocityRemaining = [velocity[0], velocity[1]];
+		this.breath = this.getMaxBreath();
+		this.phase = Aerial.PHASE_NOTTURN;
+		this.fractionalPosition = [position[0] + 0.5, position[1] + 0.5];
+		this.eliminated = false;
+	}
+
 	moveStep(collider) {
 		this.phase = Aerial.PHASE_MIDFLIGHT;
+		this.historyPoints.push(this.fractionalPosition);
 		let ray = [this.position[0] + this.velocityRemaining[0] - this.fractionalPosition[0] + .5, this.position[1] + this.velocityRemaining[1] - this.fractionalPosition[1] + .5];
 		let rayLength = Math.sqrt(ray[0] * ray[0] + ray[1] * ray[1]);
 
@@ -289,6 +408,10 @@ class Aerial {
 			this.fractionalPosition = [this.fractionalPosition[0] + Math.min(tToInterceptX, tToInterceptY) * (ray[0] / rayLength) / 2, this.fractionalPosition[1] + Math.min(tToInterceptX, tToInterceptY) * (ray[1] / rayLength) / 2];
 		}
 	}
+	
+	penalty() {
+		this.eliminated = true;
+	}
 
 	getMaxBreath() {
 		return 6 + (this.hasSkill(Skill.SKILL_ENDURANCE) ? 2 : 0);
@@ -296,7 +419,7 @@ class Aerial {
 
 	hasSkill(skillId) {
 		for (let i = 0 ; i < this.skills.length; i++) {
-			if (this.skills[i] == skillId && !this.injuries[i]) return true;
+			if (this.skills[i] == skillId && !this.injuries.includes(i)) return true;
 		}
 		return false;
 	}
@@ -310,13 +433,14 @@ class Aerial {
 						this.name,
 						this.team,
 						this.skills.map(i => i),
-						this.injuries.map(i => i),
-						this.breath);
+						this.injuries.map(i => i));
 		a.velocityRemaining = this.velocityRemaining.map(i => i);
 		a.fractionalPosition = this.fractionalPosition;
 		a.skillCount = this.skillCount;
 		a.phase = this.phase;
 		a.eliminated = this.eliminated;
+		a.breath = this.breath;
+		a.historyPoints = this.historyPoints;
 		return a;
 	}
 }

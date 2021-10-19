@@ -4,10 +4,10 @@ class Controller {
 	// locked
 	// backend
 
-	constructor(game) {
+	constructor(game, actionSubmitter) {
 		this.game = game;
 		this.listeners = [];
-		this.backend = new MemoryBackend();
+		this.actionSubmitter = actionSubmitter;
 	}
 
 	addListener(callback) {
@@ -17,49 +17,45 @@ class Controller {
 	submitAction(action) {
 		if (this.locked) return;
 		this.locked = true;
-		let result = this.backend.commit(state => {
-			if (state.actions.length != action.revision) return false;
-			state.actions.push(action);
-			return true;
+		let othis = this;
+		this.actionSubmitter(actions => {
+			if (actions.length != action.revision) {
+				othis.locked = false;
+			} else {
+				actions.push(action);
+			}
 		});
-		console.log(result);
-		this.locked = false;
 	}
 
-	onAction(action) {
-		this.game.revision++;
-		if (action.hasOwnProperty("skill")) {
-			Skill.SKILLS[action.skill](this.game.field.aerials[action.aerial], this.game)[action.option]();
-		} else if (action.hasOwnProperty("move")) {
-			this.game.field.aerials[action.aerial].moveStep(this.game.field.collisionTester.bind(this.game.field));
-		} else if (action.hasOwnProperty("endturn")) {
-			this.game.endTurn();
-		} else {
-			console.log(JSON.stringify(action));
+	// a should be between 0 and 1.
+	random(a) {
+		a *= 2 ^ 31;
+		return function() { // mulberry32
+			var t = a += 0x6D2B79F5;
+			t = Math.imul(t ^ t >>> 15, t | 1);
+			t ^= Math.imul(t ^ t >>> 7, t | 61);
+			return ((t ^ t >>> 14) >>> 0) / 4294967296;
+		}
+	}
+
+	onAction(actions) {
+		if (actions == null) actions = [];
+		for (let a = this.game.revision; a < actions.length; a++) {
+			let action = actions[a];
+			this.game.revision++;
+			let randomizer = this.random(action.random);
+			if (action.hasOwnProperty("skill")) {
+				Skill.SKILLS[action.skill](this.game.field.aerials[action.aerial], this.game, randomizer)[action.option]();
+			} else if (action.hasOwnProperty("move")) {
+				this.game.field.aerials[action.aerial].moveStep(this.game.field.collisionTester.bind(this.game.field, randomizer));
+			} else if (action.hasOwnProperty("endturn")) {
+				this.game.endTurn();
+			} else {
+				console.log(JSON.stringify(action));
+			}
+			this.game.checkRoundEnd();
 		}
 		for (let l of this.listeners) l();
-	}
-}
-
-class NetworkBackend {
-	// Server gamestate is an action history.
-	// We read the action list, make sure the length matches the game revision, and if so, add the action in that transaction.
-	// If the length doesn't match, we abort the transaction and simply don't follow through on the action.
-	commit(txn) {
-		let pass = false;
-		stateRef.transaction(s => {
-			pass = txn(s);
-			return s;
-		});
-		return pass;
-	}
-}
-
-class MemoryBackend {
-	// state
-
-	commit(txn) {
-		txn(this.state);
-		return true;
+		this.locked = false;
 	}
 }

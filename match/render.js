@@ -10,6 +10,15 @@ class RenderUtil {
 	static translatePoints(points, x, y) {
 		return points.map(p => [p[0] + x, p[1] + y]);
 	}
+
+	static contrastingColor(color) {
+		let r = parseInt(color.substring(1, 3), 16);
+		let g = parseInt(color.substring(3, 5), 16);
+		let b = parseInt(color.substring(5, 7), 16);
+		let sum = r / 255 + g / 255 + b * 0.5 / 255;
+		if (sum > 1.25) return "#000000";
+		return "#ffffff";
+	}
 }
 
 class GameActor {
@@ -36,20 +45,64 @@ class ControlActor {
 	// whoami
 	// optionsActors[] // 1 per aerial
 	// endTurnButton
+	// stat
+	// teamIndicators
+	// scoreIndicators
 	
 	constructor(game, whoami, fieldActor, actionCommitter, parent) {
 		this.game = game;
 		this.whoami = whoami;
 		this.optionsActors = [];
+		this.teamIndicators = [];
+		this.scoreIndicators = [];
 		{
 			let title = document.createElement("div");
-			title.appendChild(document.createTextNode(game.teams.map(t => t.name + " (0)").join(" vs ") + " at " + game.field.name));
+			title.style.display = "flex";
+			title.style.justifyContent = "space-between";
+			title.style.paddingBottom = "0.2em";
+			let c = 0;
+			for (let t of game.teams) {
+				if (c == 1) {
+					this.stat = document.createElement("div");
+					title.appendChild(this.stat);
+				}
+				let span = document.createElement("span");
+				span.style.fontSize = "200%";
+				span.style.borderRadius = "0.2em";
+				span.style.padding = "0.3em";
+				span.style.backgroundColor = t.color1;
+				span.style.color = RenderUtil.contrastingColor(t.color1);
+				span.style.borderTop = "6px solid " + t.color2;
+				span.style.borderBottom = "6px solid " + t.color2;
+				span.appendChild(document.createTextNode(t.name));
+				this.teamIndicators.push(span);
+				title.appendChild(span);
+				c++;
+			}
 			parent.appendChild(title);
 		}
 		{
-			let stat = document.createElement("div");
-			stat.appendChild(document.createTextNode("Round 1 - 5:00"));
-			parent.appendChild(stat);
+			let scoreBar = document.createElement("div");
+			scoreBar.style.display = "flex";
+			scoreBar.style.justifyContent = "space-around";
+			for (let i = 0; i < 3; i++) {
+				let d = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+				d.setAttribute("viewBox", "0 0 1 3");
+				d.style.height = "3em";
+				this.scoreIndicators.push(d);
+				let r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+				r.setAttribute("width", 1);
+				r.setAttribute("height", 3);
+				r.setAttribute("rx", 0.5);
+				r.style.fill = "#ffffff";
+				d.appendChild(r);
+				r = document.createElementNS("http://www.w3.org/2000/svg", "path");
+				r.setAttribute("d", "M0 2.5V1.5L1 .5V1.5Z");
+				r.style.fill = "#f8f8ff";
+				d.appendChild(r);
+				scoreBar.appendChild(d);
+			}
+			parent.appendChild(scoreBar);
 		}
 		{
 			let bar = document.createElement("div");
@@ -70,12 +123,12 @@ class ControlActor {
 				this.optionsActors.push(new OptionsActor(aerial, game, fieldActor, actionCommitter, optParent));
 				let othis = this;
 				img.addEventListener("click", () => {
-					for (let e of bar.querySelectorAll("svg")) e.setAttribute("class", "");
-					img.setAttribute("class", "active");
-					for (let j = 0; j < othis.optionsActors.length; j++) {
-						let e = othis.optionsActors[j];
-						if (i == j) e.show();
-						else e.hide();
+					if (img.getAttribute("class") == "active") {
+						img.setAttribute("class", "");
+						othis.optionsActors[i].hide();
+					} else {
+						img.setAttribute("class", "active");
+						othis.optionsActors[i].show();
 					}
 				});
 			}
@@ -87,7 +140,7 @@ class ControlActor {
 			this.endTurnButton.appendChild(c);
 			bar.appendChild(this.endTurnButton);
 			c.style.cursor = "pointer";
-			c.addEventListener("click", () => {let revision = game.revision; actionCommitter({"revision": revision, "endturn": true});});
+			c.addEventListener("click", () => {let revision = game.revision; actionCommitter({"revision": revision, "endturn": true, "random": Math.random()});});
 			let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
 			t.appendChild(document.createTextNode("End"));
 			t.style.textAnchor = "middle";
@@ -100,10 +153,17 @@ class ControlActor {
 	}
 
 	update() {
+		this.stat.textContent = this.game.round == 4 ? "" : "Round " + this.game.round + ", " + this.game.turnsLeft + " turns left";
+		this.scoreIndicators[0].querySelector("rect").style.fill = this.game.scores[0] >= 1 ? this.game.teams[0].color1 : this.game.scores[1] >= 3 ? this.game.teams[1].color1 : "#ffffff";
+		this.scoreIndicators[0].querySelector("path").style.fill = this.game.scores[0] >= 1 ? this.game.teams[0].color2 : this.game.scores[1] >= 3 ? this.game.teams[1].color2 : "#ffffff";
+		this.scoreIndicators[1].querySelector("rect").style.fill = this.game.scores[0] >= 2 ? this.game.teams[0].color1 : this.game.scores[1] >= 2 ? this.game.teams[1].color1 : "#ffffff";
+		this.scoreIndicators[1].querySelector("path").style.fill = this.game.scores[0] >= 2 ? this.game.teams[0].color2 : this.game.scores[1] >= 2 ? this.game.teams[1].color2 : "#ffffff";
+		this.scoreIndicators[2].querySelector("rect").style.fill = this.game.scores[0] >= 3 ? this.game.teams[0].color1 : this.game.scores[1] >= 1 ? this.game.teams[1].color1 : "#ffffff";
+		this.scoreIndicators[2].querySelector("path").style.fill = this.game.scores[0] >= 3 ? this.game.teams[0].color2 : this.game.scores[1] >= 1 ? this.game.teams[1].color2 : "#ffffff";
 		for (let a of this.optionsActors) a.update();
 		{
-			let endTurnOK = true;
-			for (let a of this.optionsActors) if (a.aerial.velocityRemaining[0] != 0 || a.aerial.velocityRemaining[1] != 0) endTurnOK = false;
+			let endTurnOK = this.game.round < 4;
+			for (let a of this.optionsActors) if (!a.aerial.eliminated && (a.aerial.velocityRemaining[0] != 0 || a.aerial.velocityRemaining[1] != 0)) endTurnOK = false;
 			this.endTurnButton.style.visibility = endTurnOK ? "visible" : "hidden";
 		}
 	}
@@ -116,8 +176,7 @@ class OptionsActor {
 	// g
 	// optionsBlock
 	// actionCommitter
-
-	// TODO: Describe abilities (and injury status)
+	// vitals
 
 	constructor(aerial, game, fieldActor, actionCommitter, parent) {
 		this.aerial = aerial;
@@ -126,8 +185,18 @@ class OptionsActor {
 		this.actionCommitter = actionCommitter;
 		this.g = document.createElement("div");
 		this.g.style.display = "none";
+		this.g.style.textAlign = "center";
 		parent.appendChild(this.g);
-		this.g.appendChild(document.createTextNode(aerial.name));
+		{
+			let namespan = document.createElement("span");
+			namespan.style.fontSize = "150%";
+			namespan.appendChild(document.createTextNode(aerial.name));
+			this.g.appendChild(namespan);
+		}
+		{
+			this.vitals = document.createElement("div");
+			this.g.appendChild(this.vitals);
+		}
 		this.optionsBlock = document.createElement("div");
 		this.optionsBlock.setAttribute("class", "optionsblock");
 		this.g.appendChild(this.optionsBlock);
@@ -144,6 +213,23 @@ class OptionsActor {
 
 	update() {
 		this.optionsBlock.innerHTML = "";
+		{ // Vitals Updates
+			this.vitals.innerHTML = "";
+
+			let stat = document.createElement("div");
+			if (aerial.eliminated) stat.appendChild(document.createTextNode("Eliminated"));
+			this.vitals.appendChild(stat);
+
+			let skillList = document.createElement("ul");
+			skillList.setAttribute("class", "skillList");
+			for (let i = 0; i < this.aerial.skills.length; i++) {
+				let li = document.createElement("li");
+				li.appendChild(document.createTextNode(this.aerial.skills[i]));
+				if (this.aerial.injuries.indexOf(i) != -1) li.setAttribute("class", "injured");
+				skillList.appendChild(li);
+			}
+			this.vitals.appendChild(skillList);
+		}
 
 		const makeButton = (label, consequence, action) => {
 			let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -169,17 +255,18 @@ class OptionsActor {
 
 		if (this.aerial.phase == Aerial.PHASE_NOTTURN || this.aerial.eliminated) return;
 		for (let s of this.aerial.skills) {
-			let options = Skill.SKILLS[s](this.aerial, this.game);
+			if (!this.aerial.hasSkill(s)) continue;
+			let options = Skill.SKILLS[s](this.aerial, this.game, () => 0);
 			for (let i = 0; i < options.length; i++) {
 				let consequence = this.game.clone();
-				Skill.SKILLS[s](consequence.field.aerials[this.game.field.aerials.indexOf(this.aerial)], consequence)[i](); // Apply the skill use to the consequence.
-				makeButton(s, consequence, {"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "skill": s, "option": i});
+				Skill.SKILLS[s](consequence.field.aerials[this.game.field.aerials.indexOf(this.aerial)], consequence, () => 0)[i](); // Apply the skill use to the consequence.
+				makeButton(s, consequence, {"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "skill": s, "option": i, "random": Math.random()});
 			}
 		}
 		if (this.aerial.velocityRemaining[0] != 0 || this.aerial.velocityRemaining[1] != 0) {
 			let consequence = this.game.clone();
-			consequence.field.aerials[this.game.field.aerials.indexOf(this.aerial)].moveStep(consequence.field.collisionTester.bind(consequence.field));
-			makeButton("move", consequence, {"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "move": true});
+			consequence.field.aerials[this.game.field.aerials.indexOf(this.aerial)].moveStep(consequence.field.collisionTester.bind(consequence.field, () => 0));
+			makeButton("move", consequence, {"revision": this.game.revision, "aerial": this.game.field.aerials.indexOf(this.aerial), "move": true, "random": Math.random()});
 		}
 	}
 }
@@ -344,20 +431,28 @@ class AerialActor {
 	// override
 	// field
 	// g
+	// gFixed
 	// motionDest[]
 	// motionDestLine[]
 	// breathPips[]
 	// skillCountPips[]
 	// motionPlacer
-
-	// TODO: injury pips.
-	// TODO: mana/skillCount pips?
+	// historyPath
 
 	constructor(aerial, field, parent) {
 		this.aerial = aerial;
 		this.field = field;
 		this.g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-		parent.appendChild(this.g);
+		this.gFixed = document.createElementNS("http://www.w3.org/2000/svg", "g");
+		{
+			this.historyPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+			this.historyPath.style.fill = "none";
+			this.historyPath.style.stroke = "rgba(0, 0, 0, 0.2)";
+			this.historyPath.style.strokeWidth = 0.022;
+			this.gFixed.appendChild(this.historyPath);
+		}
+		this.gFixed.appendChild(this.g);
+		parent.appendChild(this.gFixed);
 		this.g.style.transform = RenderUtil.posToTransform(this.aerial.position, this.field);
 		this.g.style.transition = "0.3s";
 		this.motionDest = [];
@@ -367,7 +462,7 @@ class AerialActor {
 			this.motionDestLine[0].style.transition = "0.3s";
 			this.motionDestLine[0].style.fill = "none";
 			this.motionDestLine[0].style.stroke = this.aerial.team.color2;
-			this.motionDestLine[0].style.strokeWidth = 0.022
+			this.motionDestLine[0].style.strokeWidth = 0.022;
 			this.g.appendChild(this.motionDestLine[0]);
 		}
 		{
@@ -375,7 +470,7 @@ class AerialActor {
 			this.motionDestLine[1].style.transition = "0.3s";
 			this.motionDestLine[1].style.fill = "none";
 			this.motionDestLine[1].style.stroke = this.aerial.team.color2;
-			this.motionDestLine[1].style.strokeWidth = 0.022
+			this.motionDestLine[1].style.strokeWidth = 0.022;
 			this.g.appendChild(this.motionDestLine[1]);
 		}
 		{
@@ -450,19 +545,29 @@ class AerialActor {
 			stepAngle /= -1.5;
 			op = [Math.sin(stepAngle) * .5 + .5, (1 - Math.cos(stepAngle) * .5 - .5)];
 			ip = [Math.sin(stepAngle / 2) * .3 + .5, (1 - Math.cos(stepAngle / 2) * .3 - .5)];
-			for (let i = 0; i < 8; i++) this.injuryPips.push(makePip("M.5 .2V0A.5 .5 0 0 1 " + op[0] + " " + op[1] + "L" + ip[0] + " " + ip[1] + "Z", startAngle + stepAngle * i, "#a20", "#000"));
+			for (let i = 0; i < 8; i++) this.injuryPips.push(makePip("M.5 0A.5 .5 0 0 0 " + op[0] + " " + op[1] + "L" + ip[0] + " " + ip[1] + "Z", startAngle + stepAngle * i, "#a20", "#000"));
 		}
 		this.update();
 	}
 
 	update() {
 		let a = this.override != undefined ? this.override : this.aerial;
+		this.g.style.opacity = a.eliminated && this.aerial.eliminated ? 0 : a.eliminated || this.aerial.eliminated ? 0.5 : 1;
 		this.g.style.transform = RenderUtil.posToTransform(this.aerial.position, this.field);
 		let dp = [a.position[0] - this.aerial.position[0], a.position[1] - this.aerial.position[1]];
+		this.motionDest[0].style.opacity = a.eliminated ? 0 : 1;
+		this.motionDest[1].style.opacity = a.eliminated ? 0 : 1;
+		this.motionDestLine[0].style.opacity = a.eliminated ? 0 : 1;
+		this.motionDestLine[1].style.opacity = a.eliminated ? 0 : 1;
 		this.motionDest[0].style.transform = "translate(" + (dp[0] + a.velocityRemaining[0]) + "px, " + -(dp[1] + a.velocityRemaining[1]) + "px)";
 		this.motionDest[1].style.transform = "translate(" + (dp[0] + a.velocityRemaining[0] + a.velocity[0]) + "px, " + (-dp[1] - a.velocityRemaining[1] - a.velocity[1] + 1) + "px)";
 		this.motionDestLine[0].setAttribute("d", "M" + (a.fractionalPosition[0] - this.aerial.position[0]) + " " + (1 - (a.fractionalPosition[1] - this.aerial.position[1])) + "L" + (dp[0] + a.velocityRemaining[0] + .5) + " " + (1 - (dp[1] + a.velocityRemaining[1] + .5)));
 		this.motionDestLine[1].setAttribute("d", "M.5 .5m" + (dp[0] + a.velocityRemaining[0]) + " " + -(dp[1] + a.velocityRemaining[1]) + "l" + a.velocity[0] + " " + (-a.velocity[1] + 1));
+		{
+			let historyPoints = a.historyPoints.map(i => i);
+			historyPoints.push(a.fractionalPosition.map(i => i));
+			this.historyPath.setAttribute("d", "M" + historyPoints.map(p => p[0] + " " + (this.field.height - p[1])).join("L"));
+		}
 		{ // Motion placer
 			if (dp[0] != 0 || dp[1] != 0) {
 				this.motionPlacer.style.stroke = "#000";
@@ -483,6 +588,8 @@ class AerialActor {
 			for (let i = 0; i < this.skillCountPips.length; i++) {
 				let aCapacity = this.field.getCell(a.position).mana;
 				let aerialCapacity = this.field.getCell(this.aerial.position).mana;
+				if (a.hasSkill(Skill.SKILL_MANA_FLOW)) aCapacity++;
+				if (this.aerial.hasSkill(Skill.SKILL_MANA_FLOW)) aerialCapacity++;
 
 				let scale = 0;
 				if (aCapacity > i && aerialCapacity > i) scale = 1;
@@ -497,16 +604,13 @@ class AerialActor {
 		}
 		{ // Injury pips
 			for (let i = 0; i < this.injuryPips.length; i++) {
-				let aInjuries = 0;
-				let aerialInjuries = 0;
-				for (let i = 0; i < a.injuries.length; i++) if (a.injuries[i]) aInjuries++;
-				for (let i = 0; i < this.aerial.injuries.length; i++) if (this.aerial.injuries[i]) aerialInjuries++;
+				let aInjuries = a.injuries.length;
+				let aerialInjuries = this.aerial.injuries.length;
 				let scale = 0;
 				if (aInjuries > i && aerialInjuries > i) scale = 1;
 				else if (aInjuries > i || aerialInjuries > i) scale = 1.3;
 				this.injuryPips[i].style.transform = this.injuryPips[i].dataset.baseTransform.replace("%S", scale);
 			}
 		}
-
 	}
 }

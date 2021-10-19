@@ -17,6 +17,7 @@
 			}
 			body {
 				display: grid;
+				grid-template-rows: min-content 1fr;
 				grid-template-columns: 20em 1fr;
 			}
 			#list {
@@ -42,19 +43,35 @@
 				visibility: hidden;
 				height: min-content;
 			}
-			td {
+			td, td > * {
 				vertical-align: top;
+			}
+			#previewPortrait {
+				height: 5em;
+				clip-path: circle();
+			}
+			#navbar {
+				grid-column: 1 / 3;
+				display: flex;
+				justify-content: space-around;
+				background-color: #002;
 			}
 		</style>
 	</head>
 	<body>
+		<div id="navbar">
+			<a href="aerialedit.html" disabled>Aerials</a>
+			<a href="fieldedit.html">Fields</a>
+			<a href="matchedit.html">Matches</a>
+			<a href="teamedit.html">Teams</a>
+		</div>
 		<div id="list">
 			<button id="newAerial">New Aerial</button>
 		</div>
 		<table id="aerialEdit">
 			<tr><td><label for="editKey">Unique Key</label></td><td><input type="text" id="editKey" disabled></input></td></tr>
 			<tr><td><label for="editName">Name</label></td><td><input type="text" id="editName"></input></td></tr>
-			<tr><td><label for="editPortrait">Portrait</label></td><td><input type="text" id="editPortrait"></input></td></tr>
+			<tr><td><label for="editPortrait">Portrait</label></td><td><input type="text" id="editPortrait"></input><img id="previewPortrait"></img></td></tr>
 			<tr>
 				<td><label>Skills</label></td>
 				<td>
@@ -104,6 +121,7 @@
 				}
 			}
 			document.getElementById("editName").addEventListener("input", checkSave);
+			document.getElementById("editPortrait").addEventListener("input", checkSave);
 
 			function getFormData() {
 				let o = {
@@ -124,6 +142,7 @@
 			}
 
 			function checkSave() {
+				document.getElementById("previewPortrait").setAttribute("src", "assets/portraits/" + document.getElementById("editPortrait").value);
 				document.getElementById("save").disabled = JSON.stringify(getFormData()) == JSON.stringify(displayedData);
 			}
 
@@ -135,7 +154,10 @@
 				document.getElementById("editPortrait").value = data.portrait;
 				for (let d of document.querySelectorAll("input[type=checkbox]")) d.checked = false;
 				if (data.hasOwnProperty("skills")) {
-					for (let s of data.skills) document.getElementById("editSkill" + s.replace(/ /g, "_")).checked = true;
+					for (let s of data.skills) {
+						let item = document.getElementById("editSkill" + s.replace(/ /g, "_"));
+						if (item != null) item.checked = true;
+					}
 				}
 				if (data.hasOwnProperty("injuries")) {
 					for (let s of data.injuries) document.getElementById("editSkillInjured" + data.skills[s].replace(/ /g, "_")).checked = true;
@@ -148,7 +170,12 @@
 			function makeAerialLink(key, data, insertBefore) {
 				let v = document.getElementById("list");
 				let a = document.createElement("a");
-				a.appendChild(document.createTextNode(data.name + " (" + key + ")"));
+				let img = document.createElement("img");
+				img.setAttribute("src", "assets/portraits/" + data.portrait);
+				img.style.height = "1em";
+				img.style.clipPath = "circle()";
+				a.appendChild(img);
+				a.appendChild(document.createTextNode(data.name));
 				a.setAttribute("data-key", key);
 				a.setAttribute("href", "#" + key);
 				v.insertBefore(a, insertBefore);
