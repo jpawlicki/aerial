@@ -1,5 +1,6 @@
 const COLLISION_INJURY_START = 5;
-const COLLISION_INJURY_STEP = 1;
+const COLLISION_INJURY_STEP = 2;
+const TURNS_PER_ROUND = 8;
 
 class LogicUtil {
 	// Compares two positions for equality.
@@ -24,7 +25,7 @@ class Game {
 		this.teamTurn = 0;
 		this.aerials = aerials;
 		this.revision = 0;
-		this.turnsLeft = 10;
+		this.turnsLeft = TURNS_PER_ROUND;
 		this.round = 1;
 		this.scores = teams.map(t => 0);
 		for (let ag of aerials) for (let a of ag) this.field.addAerial(a);
@@ -75,7 +76,7 @@ class Game {
 			if (this.round < 4) {	
 				this.teamTurn = 0;
 				this.round++;
-				this.turnsLeft = 10;
+				this.turnsLeft = TURNS_PER_ROUND;
 				for (let i = 0; i < this.aerials.length; i++) {
 					for (let j = 0; j < this.aerials[i].length; j++) {
 						this.aerials[i][j].resetForNewRound(this.field.startPositions[i][j], [this.field.startPositions[i][j][0] >= this.field.width / 2 ? -1 : 1, 0]);
@@ -135,8 +136,14 @@ class Field {
 			}
 		}
 
-		// Aerial-ground, aerial-out-of-bounds collisions.
-		if (position[0] < 0 || position[1] < 0 || position[0] >= this.width || position[1] >= this.height || this.cells[position[0]][position[1]].ground) {
+		// Aerial-out-of-bounds collisions.
+		if (position[0] < 0 || position[1] < 0 || position[0] >= this.width || position[1] >= this.height) {
+			aerial.eliminated = true;
+			return true;
+		}
+
+		// Aerial-ground collisions.
+		if (this.cells[position[0]][position[1]].ground) {
 			aerial.addInjury(Math.ceil((v - COLLISION_INJURY_START + 1) / COLLISION_INJURY_STEP), randomizer);
 			aerial.eliminated = true;
 			return true;
@@ -177,7 +184,7 @@ class Field {
 	}
 
 	getAerialsAdjacentTo(position) {
-		return this.aerials.filter(a => a.distanceTo(position) == 1);
+		return this.aerials.filter(a => !a.eliminated && a.distanceTo(position) == 1);
 	}
 
 	getCell(position) {
@@ -414,7 +421,7 @@ class Aerial {
 	}
 
 	getMaxBreath() {
-		return 6 + (this.hasSkill(Skill.SKILL_ENDURANCE) ? 2 : 0);
+		return 5 + (this.hasSkill(Skill.SKILL_ENDURANCE) ? 2 : 0);
 	}
 
 	hasSkill(skillId) {

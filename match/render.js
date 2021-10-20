@@ -162,7 +162,7 @@ class ControlActor {
 		this.scoreIndicators[2].querySelector("path").style.fill = this.game.scores[0] >= 3 ? this.game.teams[0].color2 : this.game.scores[1] >= 1 ? this.game.teams[1].color2 : "#ffffff";
 		for (let a of this.optionsActors) a.update();
 		{
-			let endTurnOK = this.game.round < 4;
+			let endTurnOK = this.game.round < 4 && this.game.teamTurn == this.whoami;
 			for (let a of this.optionsActors) if (!a.aerial.eliminated && (a.aerial.velocityRemaining[0] != 0 || a.aerial.velocityRemaining[1] != 0)) endTurnOK = false;
 			this.endTurnButton.style.visibility = endTurnOK ? "visible" : "hidden";
 		}

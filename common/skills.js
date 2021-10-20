@@ -76,7 +76,7 @@ class Skill {
 	}
 
 	function sameAltitudeAerial(who, game, inner) {
-		let aerials = game.field.aerials.filter(a => a != who && a.position[1] == who.position[1]);
+		let aerials = game.field.aerials.filter(a => a != who && !a.eliminated && a.position[1] == who.position[1]);
 		return inner.flatMap(i => aerials.map(a => i.bind(null, a)));
 	}
 
