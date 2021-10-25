@@ -416,12 +416,23 @@ class ObstacleActor {
 		this.g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 		parent.appendChild(this.g);
 		this.g.style.transform = RenderUtil.posToTransform(this.obstacle.position, this.field);
-		let obj = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-		obj.setAttribute("cx", 0.5);
-		obj.setAttribute("cy", 0.5);
-		obj.setAttribute("r", 0.45);
-		obj.style.fill = "#000";
-		this.g.appendChild(obj);
+		if (this.obstacle.type == ObstacleType.TYPES["referee"]) {
+			let obj = document.createElementNS("http://www.w3.org/2000/svg", "image");
+			obj.setAttribute("x", 0.1307);
+			obj.setAttribute("y", 0.05);
+			obj.setAttribute("width", 0.73846);
+			obj.setAttribute("height", 0.9);
+			obj.setAttribute("href", "assets/referee.png");
+			obj.style.fill = "#000";
+			this.g.appendChild(obj);
+		} else {
+			let obj = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+			obj.setAttribute("cx", 0.5);
+			obj.setAttribute("cy", 0.5);
+			obj.setAttribute("r", 0.45);
+			obj.style.fill = "#000";
+			this.g.appendChild(obj);
+		}
 		// TODO: handle obstacles of different shapes and sizes.
 	}
 }
@@ -588,8 +599,6 @@ class AerialActor {
 			for (let i = 0; i < this.skillCountPips.length; i++) {
 				let aCapacity = this.field.getCell(a.position).mana;
 				let aerialCapacity = this.field.getCell(this.aerial.position).mana;
-				if (a.hasSkill(Skill.SKILL_MANA_FLOW)) aCapacity++;
-				if (this.aerial.hasSkill(Skill.SKILL_MANA_FLOW)) aerialCapacity++;
 
 				let scale = 0;
 				if (aCapacity > i && aerialCapacity > i) scale = 1;

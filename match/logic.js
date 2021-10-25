@@ -73,7 +73,7 @@ class Game {
 			} else {
 				for (let i = 0; i < aerialsRemaining.length; i++) if (aerialsRemaining[i] == maxRemaining) this.scores[i]++;
 			}
-			if (this.round < 4) {	
+			if (this.round < 3) {	
 				this.teamTurn = 0;
 				this.round++;
 				this.turnsLeft = TURNS_PER_ROUND;
@@ -129,7 +129,7 @@ class Field {
 		let v = Math.abs(aerial.velocity[0]) + Math.abs(aerial.velocity[1]);
 		for (let o of this.obstacles) {
 			if (o.containsPoint(position)) {
-				v *= o.injuryFactor;
+				v *= o.type.injuryFactor;
 				aerial.addInjury(Math.ceil((v - COLLISION_INJURY_START + 1) / COLLISION_INJURY_STEP), randomizer);
 				aerial.eliminated = true;
 				return true;
@@ -163,8 +163,8 @@ class Field {
 					if (aInjuries > 0 && aerial.hasSkill(Skill.SKILL_WICKED)) aInjuries++;
 					if (aerialInjuries > 0 && a.hasSkill(Skill.SKILL_WICKED)) aerialInjuries++;
 
-					if (aerial.hasSkill(Skill.SKILL_WINDING)) a.breath = Math.max(0, a.breath - 3);
-					if (a.hasSkill(Skill.SKILL_WINDING)) aerial.breath = Math.max(0, aerial.breath - 3);
+					if (aerial.hasSkill(Skill.SKILL_WINDING)) a.breath = Math.max(0, a.breath - 1);
+					if (a.hasSkill(Skill.SKILL_WINDING)) aerial.breath = Math.max(0, aerial.breath - 1);
 					if (a.hasSkill(Skill.IMPLACABLE)) {
 						dv[0] -= Math.sign(dv[0]);
 						dv[1] -= Math.sign(dv[1]);
@@ -361,8 +361,8 @@ class Aerial {
 		this.phase = Aerial.PHASE_NOTTURN;
 		{
 			let breathRegain = 2;
-			if (this.hasSkill(Skill.SKILL_SKYDIVER) && field.getCell(this.position).mana == 0) breathRegain++;
-			if (this.hasSkill(Skill.SKILL_GROUND_EFFECT) && field.getCell(this.position).mana >= 3) breathRegain++;
+			if (this.hasSkill(Skill.SKILL_SKYDIVER) && field.getCell(this.position).mana <= 1) breathRegain += 2;
+			if (this.hasSkill(Skill.SKILL_GROUND_EFFECT) && field.getCell(this.position).mana >= 2) breathRegain++;
 			while (breathRegain > 0) {
 				if (this.breath + 1 <= this.getMaxBreath()) this.breath++;
 				breathRegain--;

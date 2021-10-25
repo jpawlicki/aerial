@@ -45,7 +45,6 @@ class Skill {
 	// built up through partial application.
 	function common(aerial, game, manaReq, breathReq, effect) {
 		let mana = game.field.getCell(aerial.position).mana;
-		if (aerial.hasSkill(Skill.SKILL_MANA_FLOW)) mana++;
 		if (aerial.breath < breathReq || mana <= aerial.skillCount || mana < manaReq) return [];
 		return and(effect, [() => { aerial.breath -= breathReq; aerial.skillCount++; }]);
 	}
@@ -92,12 +91,12 @@ class Skill {
 
 	function penaltyRisk(who, game, randomizer) {
 		let minDist = Number.POSITIVE_INFINITY;
-		for (let loc of game.field.obstacles.filter(o => o.referee).flatMap(r => r.occupiedPositions())) {
+		for (let loc of game.field.obstacles.filter(o => o.type.referee).flatMap(r => r.occupiedPositions())) {
 			let dist = who.distanceTo(loc);
 			if (dist < minDist) minDist = dist;
 		}
 		if (minDist == Number.POSITIVE_INFINITY) return [() => {}];
-		let diceCount = Math.ceiling(minDist);
+		let diceCount = Math.ceil(minDist);
 		if (who.hasSkill(Skill.SKILL_SNEAKY)) diceCount += 3;
 		for (let i = 0; i < diceCount; i++) if (randomizer() * 6 < 1) return [() => {}];
 		return [() => who.penalty()];
@@ -149,37 +148,37 @@ class Skill {
 	}
 
 	// Preflight skills.
-	Skill.SKILLS[Skill.SKILL_LIFT] = (a, g, r) => common(a, g, 2, 1, aerial(a, up(1)));
-	Skill.SKILLS[Skill.SKILL_DROP] = (a, g, r) => common(a, g, 1, 1, aerial(a, down(1)));
-	Skill.SKILLS[Skill.SKILL_FLY] = (a, g, r) => common(a, g, 1, 1, aerial(a, horizontals(1)));
-	Skill.SKILLS[Skill.SKILL_GLIDE] = (a, g, r) => common(a, g, 1, 1, aerial(a, up(1)));
-	Skill.SKILLS[Skill.SKILL_SOAR] = (a, g, r) => common(a, g, 3, 2, aerial(a, up(2)));
-	Skill.SKILLS[Skill.SKILL_SPRINT] = (a, g, r) => common(a, g, 3, 2, aerial(a, horizontals(2)));
-	Skill.SKILLS[Skill.SKILL_DIVE] = (a, g, r) => common(a, g, 2, 2, aerial(a, down(2)));
-	Skill.SKILLS[Skill.SKILL_GROUP_LIFT] = (a, g, r) => common(a, g, 3, 2, allAdjacentAndSelf(a, g, up(1)));
-	Skill.SKILLS[Skill.SKILL_GROUP_FLY] = (a, g, r) => common(a, g, 3, 2, allAdjacentAndSelf(a, g, horizontals(1)));
-	Skill.SKILLS[Skill.SKILL_GROUP_DROP] = (a, g, r) => common(a, g, 3, 2, allAdjacentAndSelf(a, g, down(1)));
-	Skill.SKILLS[Skill.SKILL_LEVEL] = (a, g, r) => common(a, g, 1, 1, oppositeVerticalPlusHorizontal(1, 1, a));
-	Skill.SKILLS[Skill.SKILL_STEEPEN] = (a, g, r) => common(a, g, 1, 1, oppositeHorizontalPlusVertical(1, 1, a));
+	Skill.SKILLS[Skill.SKILL_LIFT]       = (a, g, r) => common(a, g, 2, 1, aerial(a, up(1)));
+	Skill.SKILLS[Skill.SKILL_DROP]       = (a, g, r) => common(a, g, 1, 1, aerial(a, down(1)));
+	Skill.SKILLS[Skill.SKILL_FLY]        = (a, g, r) => common(a, g, 1, 1, aerial(a, horizontals(1)));
+	Skill.SKILLS[Skill.SKILL_GLIDE]      = (a, g, r) => common(a, g, 1, 1, aerial(a, up(1)));
+	Skill.SKILLS[Skill.SKILL_SOAR]       = (a, g, r) => common(a, g, 2, 3, aerial(a, up(2)));
+	Skill.SKILLS[Skill.SKILL_SPRINT]     = (a, g, r) => common(a, g, 2, 3, aerial(a, horizontals(2)));
+	Skill.SKILLS[Skill.SKILL_DIVE]       = (a, g, r) => common(a, g, 1, 3, aerial(a, down(2)));
+	Skill.SKILLS[Skill.SKILL_GROUP_LIFT] = (a, g, r) => common(a, g, 3, 3, allAdjacentAndSelf(a, g, up(1)));
+	Skill.SKILLS[Skill.SKILL_GROUP_FLY]  = (a, g, r) => common(a, g, 2, 3, allAdjacentAndSelf(a, g, horizontals(1)));
+	Skill.SKILLS[Skill.SKILL_GROUP_DROP] = (a, g, r) => common(a, g, 1, 3, allAdjacentAndSelf(a, g, down(1)));
+	Skill.SKILLS[Skill.SKILL_LEVEL]      = (a, g, r) => common(a, g, 1, 1, oppositeVerticalPlusHorizontal(1, 1, a));
+	Skill.SKILLS[Skill.SKILL_STEEPEN]    = (a, g, r) => common(a, g, 1, 1, oppositeHorizontalPlusVertical(1, 1, a));
+	Skill.SKILLS[Skill.SKILL_BOOST]      = (a, g, r) => common(a, g, 2, 2, adjacentAerial(a, g, up(2)));
+	Skill.SKILLS[Skill.SKILL_THROW]      = (a, g, r) => common(a, g, 0, 2, and(adjacentAerial(a, g, down(1)), aerial(a, up(1))));
+	Skill.SKILLS[Skill.SKILL_DOWNDRAFT]  = (a, g, r) => common(a, g, 2, 3, sameAltitudeAerial(a, g, down(1)));
+	Skill.SKILLS[Skill.SKILL_SIDEDRAFT]  = (a, g, r) => common(a, g, 2, 3, sameAltitudeAerial(a, g, horizontals(1)));
+	Skill.SKILLS[Skill.SKILL_UPDRAFT]    = (a, g, r) => common(a, g, 2, 3, sameAltitudeAerial(a, g, up(1)));
 
 	// Midflight skills.
-	Skill.SKILLS[Skill.SKILL_BOOST] = (a, g, r) => common(a, g, 2, 1, midflight(a, adjacentAerial(a, g, up(2))));
-	Skill.SKILLS[Skill.SKILL_THROW] = (a, g, r) => common(a, g, 2, 1, midflight(a, and(adjacentAerial(a, g, down(1)), aerial(a, up(1)))));
-	Skill.SKILLS[Skill.SKILL_CHOKE] = (a, g, r) => common(a, g, 0, 1, midflight(a, and(penaltyRisk(a, g, r), adjacentAerial(a, g, setBreath(1)))));
-	Skill.SKILLS[Skill.SKILL_STRIKE] = (a, g, r) => common(a, g, 0, 1, midflight(a, and(penaltyRisk(a, g, r), adjacentAerial(a, g, injure(2, r)))));
-	Skill.SKILLS[Skill.SKILL_SWITCH] = (a, g, r) => common(a, g, 0, 1, midflight(a, adjacentAerial(a, g, swapLocation(a))));
-	Skill.SKILLS[Skill.SKILL_DOWNDRAFT] = (a, g, r) => common(a, g, 2, 2, midflight(a, sameAltitudeAerial(a, g, down(1))));
-	Skill.SKILLS[Skill.SKILL_SIDEDRAFT] = (a, g, r) => common(a, g, 2, 2, midflight(a, sameAltitudeAerial(a, g, horizontals(1))));
-	Skill.SKILLS[Skill.SKILL_UPDRAFT] = (a, g, r) => common(a, g, 2, 2, midflight(a, sameAltitudeAerial(a, g, up(1))));
+	Skill.SKILLS[Skill.SKILL_CHOKE]      = (a, g, r) => common(a, g, 0, 1, midflight(a, and(penaltyRisk(a, g, r), adjacentAerial(a, g, setBreath(1)))));
+	Skill.SKILLS[Skill.SKILL_STRIKE]     = (a, g, r) => common(a, g, 0, 1, midflight(a, and(penaltyRisk(a, g, r), adjacentAerial(a, g, injure(2, r)))));
+	Skill.SKILLS[Skill.SKILL_SWITCH]     = (a, g, r) => common(a, g, 0, 1, midflight(a, adjacentAerial(a, g, swapLocation(a))));
 
 	// Passive skills.
-	Skill.SKILLS[Skill.SKILL_ENDURANCE] = (a, g, r) => passive();
-	Skill.SKILLS[Skill.SKILL_TOUGH] = (a, g, r) => passive();
-	Skill.SKILLS[Skill.SKILL_SNEAKY] = (a, g, r) => passive();
-	Skill.SKILLS[Skill.SKILL_MANA_FLOW] = (a, g, r) => passive();
-	Skill.SKILLS[Skill.SKILL_SKYDIVER] = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_ENDURANCE]     = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_TOUGH]         = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_SNEAKY]        = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_MANA_FLOW]     = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_SKYDIVER]      = (a, g, r) => passive();
 	Skill.SKILLS[Skill.SKILL_GROUND_EFFECT] = (a, g, r) => passive();
-	Skill.SKILLS[Skill.SKILL_WICKED] = (a, g, r) => passive();
-	Skill.SKILLS[Skill.SKILL_WINDING] = (a, g, r) => passive();
-	Skill.SKILLS[Skill.SKILL_IMPLACABLE] = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_WICKED]        = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_WINDING]       = (a, g, r) => passive();
+	Skill.SKILLS[Skill.SKILL_IMPLACABLE]    = (a, g, r) => passive();
 }
